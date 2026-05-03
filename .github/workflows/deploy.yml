@@ -19,7 +19,7 @@ jobs:
         env:
           VITE_SHEETS_API_URL: ${{ secrets.VITE_SHEETS_API_URL }}
           VITE_SHEET_ID: ${{ secrets.VITE_SHEET_ID }}
-          VITE_USE_MOCK_DATA: ${{ secrets.VITE_USE_MOCK_DATA }}
+          VITE_USE_MOCK_DATA: "true"
         run: |
           npm ci
           npm run build
