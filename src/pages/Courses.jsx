@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { BookOpen, Users, Calculator, Download, Plus, Wallet, Clock } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { BookOpen, Users, Calculator, Download, Plus, Wallet, Clock, Link, Check } from 'lucide-react'
 import { mockCourses, mockEnrollments, mockMembers } from '../services/mockData'
 import { calcProRatedFee } from '../utils/billing'
 
@@ -10,8 +11,18 @@ const emptyForm = {
 }
 
 export default function Courses() {
+  const navigate = useNavigate()
   const [courses, setCourses] = useState(mockCourses)
   const [enrollments, setEnrollments] = useState(mockEnrollments)
+  const [copiedId, setCopiedId] = useState(null)
+
+  function copyLink(courseId) {
+    const url = `${window.location.origin}/silver-care-system/register/${courseId}`
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedId(courseId)
+      setTimeout(() => setCopiedId(null), 2000)
+    })
+  }
   const [calcInput, setCalcInput] = useState({ totalFee: 200, totalSessions: 4, remaining: 2 })
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -271,13 +282,30 @@ export default function Courses() {
                 </div>
               )}
 
-              <button onClick={() => setEnrollModal(c.id)}
-                className={`w-full py-2 rounded-xl text-sm font-medium transition-colors mb-3 ${
-                  isFull ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
-                         : 'bg-primary text-white hover:bg-primary-light'
-                }`}>
-                {isFull ? `後補報名（目前後補 ${waitlist.length} 人）` : '報名此課程'}
-              </button>
+              <div className="flex gap-2 mb-3">
+                <button onClick={() => setEnrollModal(c.id)}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${
+                    isFull ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                           : 'bg-primary text-white hover:bg-primary-light'
+                  }`}>
+                  {isFull ? `後補報名（${waitlist.length} 人）` : '現場報名'}
+                </button>
+                <button
+                  onClick={() => copyLink(c.id)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border transition-colors bg-white border-gray-300 text-gray-600 hover:border-primary hover:text-primary"
+                  title="複製報名連結">
+                  {copiedId === c.id
+                    ? <><Check className="w-4 h-4 text-green-500" /><span className="text-green-600 text-xs">已複製</span></>
+                    : <><Link className="w-4 h-4" /><span className="text-xs">分享連結</span></>
+                  }
+                </button>
+                <button
+                  onClick={() => navigate(`/register/${c.id}`)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-300 bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
+                  title="預覽報名頁">
+                  <span className="text-xs">預覽</span>
+                </button>
+              </div>
 
               {/* 正取學員 */}
               {enrolled.length > 0 && (

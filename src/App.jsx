@@ -7,26 +7,35 @@ import Members from './pages/Members'
 import Courses from './pages/Courses'
 import Finance from './pages/Finance'
 import AIInsights from './pages/AIInsights'
+import CourseRegister from './pages/CourseRegister'
 
 export default function App() {
   return (
     <BrowserRouter basename="/silver-care-system">
-      <div className="min-h-screen bg-surface flex flex-col">
-        <Navbar />
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar />
-          <main className="flex-1 overflow-y-auto">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/checkin" element={<CheckIn />} />
-              <Route path="/members" element={<Members />} />
-              <Route path="/courses" element={<Courses />} />
-              <Route path="/finance" element={<Finance />} />
-              <Route path="/ai-insights" element={<AIInsights />} />
-            </Routes>
-          </main>
-        </div>
-      </div>
+      <Routes>
+        {/* 報名頁：獨立全螢幕，無 Navbar/Sidebar */}
+        <Route path="/register/:courseId" element={<CourseRegister />} />
+
+        {/* 管理後台 */}
+        <Route path="/*" element={
+          <div className="min-h-screen bg-surface flex flex-col">
+            <Navbar />
+            <div className="flex flex-1 overflow-hidden">
+              <Sidebar />
+              <main className="flex-1 overflow-y-auto">
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/checkin" element={<CheckIn />} />
+                  <Route path="/members" element={<Members />} />
+                  <Route path="/courses" element={<Courses />} />
+                  <Route path="/finance" element={<Finance />} />
+                  <Route path="/ai-insights" element={<AIInsights />} />
+                </Routes>
+              </main>
+            </div>
+          </div>
+        } />
+      </Routes>
     </BrowserRouter>
   )
 }
