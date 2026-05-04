@@ -1,117 +1,318 @@
 import { useState } from 'react'
-import { BookOpen, Users, Calculator, Download } from 'lucide-react'
+import { BookOpen, Users, Calculator, Download, Plus, Wallet, Clock } from 'lucide-react'
 import { mockCourses, mockEnrollments, mockMembers } from '../services/mockData'
 import { calcProRatedFee } from '../utils/billing'
 
+const emptyForm = {
+  name: '', session: 'A', instructor: '', description: '', expected_outcome: '',
+  day: '週一', time: '09:00', start_date: '', capacity: 25,
+  total_fee: 0, total_sessions: 4, materials_fee: 0,
+}
+
 export default function Courses() {
-  const [courses] = useState(mockCourses)
-  const [enrollments] = useState(mockEnrollments)
+  const [courses, setCourses] = useState(mockCourses)
+  const [enrollments, setEnrollments] = useState(mockEnrollments)
   const [calcInput, setCalcInput] = useState({ totalFee: 200, totalSessions: 4, remaining: 2 })
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState(emptyForm)
+  const [enrollModal, setEnrollModal] = useState(null)
+  const [enrollName, setEnrollName] = useState('')
+  const [enrollPaid, setEnrollPaid] = useState('')
+  const [adminOverride, setAdminOverride] = useState(false)
+
   const fee = calcProRatedFee(calcInput.totalFee, calcInput.totalSessions, calcInput.remaining)
 
   function getEnrolled(courseId) {
-    return enrollments.filter(e => e.course_id === courseId)
+    return enrollments.filter(e => e.course_id === courseId && !e.is_waitlist)
+  }
+  function getWaitlist(courseId) {
+    return enrollments.filter(e => e.course_id === courseId && e.is_waitlist)
+      .sort((a, b) => a.waitlist_no - b.waitlist_no)
+  }
+
+  function handleCreateCourse(e) {
+    e.preventDefault()
+    const newCourse = {
+      ...form, id: `C${String(courses.length + 1).padStart(3, '0')}`,
+      enrolled: 0, waitlist: 0, materials_spent: 0, status: 'active',
+      capacity: Number(form.capacity), total_fee: Number(form.total_fee),
+      total_sessions: Number(form.total_sessions), materials_fee: Number(form.materials_fee),
+    }
+    setCourses(p => [...p, newCourse])
+    setForm(emptyForm)
+    setShowForm(false)
+  }
+
+  function handleEnroll() {
+    if (!enrollName.trim() || !enrollModal) return
+    const course = courses.find(c => c.id === enrollModal)
+    const existing = enrollments.find(e => e.course_id === enrollModal && e.member_name === enrollName.trim())
+    if (existing) return
+
+    const isFull = course.enrolled >= course.capacity
+    const now = new Date()
+    const courseStart = new Date(course.start_date)
+    const isPastStart = now > courseStart
+
+    // 開課後只能管理者手動新增（用 adminOverride 模擬）
+    if (isPastStart && !adminOverride) return
+
+    const waitlistCount = getWaitlist(enrollModal).length
+    const newEntry = {
+      id: `E${Date.now()}`,
+      member_id: '',
+      member_name: enrollName.trim(),
+      course_id: enrollModal,
+      sessions_remaining: course.total_sessions,
+      total_paid: Number(enrollPaid) || 0,
+      total_fee: course.total_fee,
+      is_waitlist: isFull,
+      waitlist_no: isFull ? waitlistCount + 1 : undefined,
+    }
+    setEnrollments(p => [...p, newEntry])
+    setCourses(p => p.map(c => c.id === enrollModal
+      ? isFull ? { ...c, waitlist: c.waitlist + 1 } : { ...c, enrolled: c.enrolled + 1 }
+      : c
+    ))
+    setEnrollModal(null)
+    setEnrollName('')
+    setEnrollPaid('')
+    setAdminOverride(false)
   }
 
   function exportCSV() {
-    const rows = [['學員', '課程', '剩餘堂數', '應繳金額', '繳費狀態']]
+    const rows = [['學員', '課程', '堂次', '應繳', '已繳', '差額', '後補']]
     enrollments.forEach(e => {
       const course = courses.find(c => c.id === e.course_id)
-      const proratedFee = calcProRatedFee(course.total_fee, course.total_sessions, e.sessions_remaining)
-      rows.push([e.member_name, course.name, e.sessions_remaining, proratedFee, e.paid ? '已繳' : '未繳'])
+      if (!course) return
+      const diff = e.total_fee - e.total_paid
+      rows.push([
+        e.member_name, `${course.name}(${course.session})`,
+        e.sessions_remaining, e.total_fee, e.total_paid, diff,
+        e.is_waitlist ? `後補${e.waitlist_no}` : '正取',
+      ])
     })
     const csv = rows.map(r => r.join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = '課程報名名單.csv'
-    a.click()
+    a.href = URL.createObjectURL(blob); a.download = '課程報名名單.csv'; a.click()
   }
 
   return (
     <div className="p-6 space-y-6">
+      {enrollModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 space-y-4">
+            <h3 className="font-semibold text-gray-700">報名課程</h3>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">長者姓名（全名）</label>
+              <input value={enrollName} onChange={e => setEnrollName(e.target.value)}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="輸入姓名，系統自動比對" autoFocus />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">現場繳費金額（元）</label>
+              <input type="number" value={enrollPaid} onChange={e => setEnrollPaid(e.target.value)}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="支援部分繳費" />
+            </div>
+            {(() => {
+              const course = courses.find(c => c.id === enrollModal)
+              const isPastStart = course && new Date() > new Date(course.start_date)
+              return isPastStart ? (
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="override" checked={adminOverride} onChange={e => setAdminOverride(e.target.checked)} />
+                  <label htmlFor="override" className="text-xs text-amber-600">已過開課日，確認管理者手動新增</label>
+                </div>
+              ) : null
+            })()}
+            <div className="flex gap-2">
+              <button onClick={handleEnroll}
+                className="flex-1 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light transition-colors">確認報名</button>
+              <button onClick={() => { setEnrollModal(null); setEnrollName(''); setEnrollPaid('') }}
+                className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">取消</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-800">課程管理</h1>
           <p className="text-sm text-gray-400 mt-1">共 {courses.length} 堂課程</p>
         </div>
-        <button onClick={exportCSV}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors text-sm font-medium">
-          <Download className="w-4 h-4" /> 匯出 CSV
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 text-sm font-medium">
+            <Download className="w-4 h-4" /> 匯出
+          </button>
+          <button onClick={() => setShowForm(p => !p)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-light text-sm font-medium shadow-sm">
+            <Plus className="w-4 h-4" /> 開設課程
+          </button>
+        </div>
       </div>
 
+      {showForm && (
+        <form onSubmit={handleCreateCourse} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+          <h3 className="font-semibold text-gray-700">新增課程</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { key: 'name', label: '課程名稱 *', req: true },
+              { key: 'instructor', label: '授課老師 *', req: true },
+              { key: 'session', label: 'A/B 場', req: false },
+              { key: 'day', label: '上課日', req: false },
+              { key: 'time', label: '時間', req: false, type: 'time' },
+              { key: 'start_date', label: '開課日期', req: false, type: 'date' },
+              { key: 'capacity', label: '名額上限', req: false, type: 'number' },
+              { key: 'total_sessions', label: '總堂數', req: false, type: 'number' },
+              { key: 'total_fee', label: '每人費用（元）', req: false, type: 'number' },
+              { key: 'materials_fee', label: '材料費預算（元）', req: false, type: 'number' },
+            ].map(({ key, label, req, type }) => (
+              <div key={key}>
+                <label className="text-xs text-gray-500 block mb-1">{label}</label>
+                <input required={req} type={type || 'text'} value={form[key]}
+                  onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+            ))}
+            <div className="col-span-2">
+              <label className="text-xs text-gray-500 block mb-1">課程內容說明</label>
+              <textarea rows={2} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs text-gray-500 block mb-1">預期參與成效</label>
+              <textarea rows={2} value={form.expected_outcome} onChange={e => setForm(p => ({ ...p, expected_outcome: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button type="submit" className="px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light">建立課程</button>
+            <button type="button" onClick={() => setShowForm(false)} className="px-5 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">取消</button>
+          </div>
+        </form>
+      )}
+
+      {/* 計費計算機 */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
           <Calculator className="w-4 h-4" /> 動態按比例計費計算機
         </h3>
         <div className="grid grid-cols-3 gap-4 mb-4">
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">課程總費用（元）</label>
-            <input type="number" value={calcInput.totalFee}
-              onChange={e => setCalcInput(p => ({ ...p, totalFee: Number(e.target.value) }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">總堂數</label>
-            <input type="number" value={calcInput.totalSessions}
-              onChange={e => setCalcInput(p => ({ ...p, totalSessions: Number(e.target.value) }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">剩餘堂數</label>
-            <input type="number" value={calcInput.remaining}
-              onChange={e => setCalcInput(p => ({ ...p, remaining: Number(e.target.value) }))}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-          </div>
+          {[
+            { key: 'totalFee', label: '課程總費用（元）' },
+            { key: 'totalSessions', label: '總堂數' },
+            { key: 'remaining', label: '剩餘堂數' },
+          ].map(({ key, label }) => (
+            <div key={key}>
+              <label className="text-xs text-gray-500 block mb-1">{label}</label>
+              <input type="number" value={calcInput[key]}
+                onChange={e => setCalcInput(p => ({ ...p, [key]: Number(e.target.value) }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+          ))}
         </div>
         <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-3 flex items-center justify-between">
-          <p className="text-sm text-green-700">應付金額 = {calcInput.totalFee} ÷ {calcInput.totalSessions} × {calcInput.remaining}</p>
+          <p className="text-sm text-green-700">{calcInput.totalFee} ÷ {calcInput.totalSessions} × {calcInput.remaining}</p>
           <span className="text-2xl font-bold text-primary">{fee} 元</span>
         </div>
       </div>
 
+      {/* 課程列表 */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {courses.map(c => {
-          const isFull = c.enrolled >= c.capacity
           const enrolled = getEnrolled(c.id)
+          const waitlist = getWaitlist(c.id)
+          const isFull = c.enrolled >= c.capacity
+          const materialsRemaining = c.materials_fee - c.materials_spent
+
           return (
             <div key={c.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <div className="flex items-start justify-between mb-3">
+              <div className="flex items-start justify-between mb-2">
                 <div>
                   <h3 className="font-semibold text-gray-800">{c.name}</h3>
                   <p className="text-xs text-gray-400">{c.session} 場 · {c.day} {c.time} · {c.instructor}</p>
+                  {c.start_date && <p className="text-xs text-gray-400">開課：{c.start_date}</p>}
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <span className={`text-xs font-medium px-2 py-1 rounded-full ${isFull ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                    {isFull ? '額滿' : `剩 ${c.capacity - c.enrolled} 名`}
+                    {isFull ? `額滿` : `剩 ${c.capacity - c.enrolled} 名`}
                   </span>
                   <p className="text-xs text-gray-400 mt-1">{c.total_fee} 元 / {c.total_sessions} 堂</p>
                 </div>
               </div>
+
+              {c.description && <p className="text-xs text-gray-500 mb-2 leading-relaxed">{c.description}</p>}
+
               <div className="mb-3">
                 <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>報名人數</span>
-                  <span>{c.enrolled} / {c.capacity}</span>
+                  <span>報名進度</span><span>{c.enrolled} / {c.capacity}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div className={`h-2 rounded-full ${isFull ? 'bg-red-400' : 'bg-primary'}`}
-                    style={{ width: `${(c.enrolled / c.capacity) * 100}%` }} />
+                    style={{ width: `${Math.min((c.enrolled / c.capacity) * 100, 100)}%` }} />
                 </div>
               </div>
-              <button disabled={isFull}
-                className={`w-full py-2 rounded-xl text-sm font-medium transition-colors ${isFull ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-primary text-white hover:bg-primary-light'}`}>
-                {isFull ? '名額已滿' : '報名此課程'}
+
+              {/* 材料費子帳 */}
+              {c.materials_fee > 0 && (
+                <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs">
+                  <div className="flex items-center gap-1 font-medium text-amber-700 mb-1">
+                    <Wallet className="w-3 h-3" /> 材料費專案帳
+                  </div>
+                  <div className="flex justify-between text-amber-600">
+                    <span>預算 {c.materials_fee} 元</span>
+                    <span>已用 {c.materials_spent} 元</span>
+                    <span className={materialsRemaining < 0 ? 'text-red-600 font-bold' : ''}>
+                      餘額 {materialsRemaining} 元
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <button onClick={() => setEnrollModal(c.id)}
+                className={`w-full py-2 rounded-xl text-sm font-medium transition-colors mb-3 ${
+                  isFull ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                         : 'bg-primary text-white hover:bg-primary-light'
+                }`}>
+                {isFull ? `後補報名（目前後補 ${waitlist.length} 人）` : '報名此課程'}
               </button>
+
+              {/* 正取學員 */}
               {enrolled.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="pt-3 border-t border-gray-100">
                   <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
-                    <Users className="w-3 h-3" /> 已報名學員
+                    <Users className="w-3 h-3" /> 正取學員
                   </p>
                   <div className="flex flex-wrap gap-1">
-                    {enrolled.map(e => (
-                      <span key={e.id} className={`text-xs px-2 py-0.5 rounded-full ${e.paid ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                        {e.member_name} {e.paid ? '✓' : '未繳'}
+                    {enrolled.map(e => {
+                      const diff = e.total_fee - e.total_paid
+                      return (
+                        <span key={e.id} className={`text-xs px-2 py-0.5 rounded-full ${
+                          diff === 0 ? 'bg-green-50 text-green-700' :
+                          diff === e.total_fee ? 'bg-red-50 text-red-600' :
+                          'bg-yellow-50 text-yellow-700'
+                        }`}>
+                          {e.member_name}
+                          {diff > 0 ? ` (欠${diff})` : ' ✓'}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 後補名單 */}
+              {waitlist.length > 0 && (
+                <div className="pt-2 border-t border-gray-100 mt-2">
+                  <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> 後補名單
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {waitlist.map(e => (
+                      <span key={e.id} className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                        後補{e.waitlist_no} {e.member_name}
                       </span>
                     ))}
                   </div>
