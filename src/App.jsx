@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Navbar from './components/layout/Navbar'
 import Sidebar from './components/layout/Sidebar'
+import BottomNav from './components/layout/BottomNav'
 import Dashboard from './pages/Dashboard'
 import CheckIn from './pages/CheckIn'
 import Members from './pages/Members'
@@ -21,8 +22,10 @@ export default function App() {
           <div className="min-h-screen bg-surface flex flex-col">
             <Navbar />
             <div className="flex flex-1 overflow-hidden">
+              {/* 桌機側邊欄（md以上顯示） */}
               <Sidebar />
-              <main className="flex-1 overflow-y-auto">
+              {/* 主要內容：手機加底部 padding 避免被 BottomNav 遮住 */}
+              <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/checkin" element={<CheckIn />} />
@@ -33,6 +36,8 @@ export default function App() {
                 </Routes>
               </main>
             </div>
+            {/* 手機底部導覽（md以下顯示） */}
+            <BottomNav />
           </div>
         } />
       </Routes>

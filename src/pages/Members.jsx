@@ -114,7 +114,7 @@ export default function Members() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {modal === 'delete' && (
         <AdminPasswordModal
           title={`確定要刪除「${deleteTarget?.name}」的資料嗎？此操作無法復原。`}
@@ -238,7 +238,7 @@ export default function Members() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filtered.map(m => {
           const risk = getRiskLevel(m.risk_score)
           return (

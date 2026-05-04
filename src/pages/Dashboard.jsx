@@ -24,13 +24,13 @@ export default function Dashboard() {
   }))
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-gray-800">首頁儀表板</h1>
         <p className="text-sm text-gray-400 mt-1">今日 2025-05-03 · 展示資料</p>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           title={`今日實到 / 預計 ${todayExpected} 人`}
           value={todayCount}
@@ -65,7 +65,7 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 實到 vs 預計 雙線圖 */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-gray-700 mb-4">近 7 天出席：實到 vs 預計</h3>

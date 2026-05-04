@@ -12,18 +12,18 @@ export default function StatCard({ title, value, unit, trend, icon, color = 'eme
     red: 'bg-red-100 text-red-600',
   }
   return (
-    <div className={`rounded-xl border p-5 flex items-center gap-4 bg-white shadow-sm ${colors[color]}`}>
-      <div className={`p-3 rounded-xl ${iconBg[color]}`}>
+    <div className={`rounded-xl border p-3 md:p-5 flex items-center gap-2 md:gap-4 bg-white shadow-sm ${colors[color]}`}>
+      <div className={`p-2 md:p-3 rounded-xl shrink-0 ${iconBg[color]}`}>
         {icon}
       </div>
-      <div className="flex-1">
-        <p className="text-xs font-medium opacity-70 mb-1">{title}</p>
-        <div className="flex items-end gap-2">
-          <span className="text-3xl font-bold">{value}</span>
-          {unit && <span className="text-sm mb-1 opacity-70">{unit}</span>}
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] md:text-xs font-medium opacity-70 mb-0.5 leading-tight">{title}</p>
+        <div className="flex items-end gap-1">
+          <span className="text-xl md:text-3xl font-bold">{value}</span>
+          {unit && <span className="text-xs md:text-sm mb-0.5 opacity-70">{unit}</span>}
         </div>
         {trend && (
-          <span className="text-xs font-medium opacity-80">{trend}</span>
+          <span className="text-[10px] md:text-xs font-medium opacity-80 leading-tight">{trend}</span>
         )}
       </div>
     </div>

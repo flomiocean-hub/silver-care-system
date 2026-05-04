@@ -110,7 +110,7 @@ export default function Courses() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {enrollModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 space-y-4">
@@ -231,7 +231,7 @@ export default function Courses() {
       </div>
 
       {/* 課程列表 */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {courses.map(c => {
           const enrolled = getEnrolled(c.id)
           const waitlist = getWaitlist(c.id)

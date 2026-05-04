@@ -74,7 +74,7 @@ export default function CheckIn() {
     : null
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-gray-800">數位簽到</h1>
         <p className="text-sm text-gray-400 mt-1">搜尋姓名後輸入生理數據完成簽到</p>
@@ -87,7 +87,7 @@ export default function CheckIn() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <label className="block text-sm font-medium text-gray-600 mb-2">搜尋長者姓名</label>

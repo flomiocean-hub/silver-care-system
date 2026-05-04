@@ -77,7 +77,7 @@ export default function AIInsights() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
           <Brain className="w-5 h-5 text-primary" /> AI 關懷洞察
@@ -86,7 +86,7 @@ export default function AIInsights() {
       </div>
 
       {/* 預警面板 */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-red-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-red-700 mb-3 flex items-center gap-2">
             <AlertCircle className="w-4 h-4" /> 孤獨死預警（{aloneHighRisk.length}）
@@ -156,7 +156,7 @@ export default function AIInsights() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* NLP 問答 */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col">
           <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">

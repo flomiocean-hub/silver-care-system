@@ -12,7 +12,7 @@ const navItems = [
 
 export default function Sidebar() {
   return (
-    <aside className="w-56 bg-white border-r border-gray-200 flex flex-col py-6 gap-1 shrink-0">
+    <aside className="hidden md:flex w-56 bg-white border-r border-gray-200 flex-col py-6 gap-1 shrink-0">
       {navItems.map(({ to, icon: Icon, label }) => (
         <NavLink
           key={to}
