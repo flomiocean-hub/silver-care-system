@@ -17,10 +17,19 @@ export default function Finance() {
   const [view, setView] = useState('all')
   const [emailSent, setEmailSent] = useState(false)
 
+  // 動態產生所有篩選選項
+  const filterOptions = [
+    { key: 'all', label: '全部' },
+    { key: 'lunch', label: '🍱 午餐費' },
+    ...Array.from(
+      new Set(records.filter(r => r.type === 'course' && r.course_name).map(r => r.course_name))
+    ).map(name => ({ key: `course:${name}`, label: `📚 ${name}` })),
+  ]
+
   const filtered = records.filter(r => {
     if (view === 'all') return true
     if (view === 'lunch') return r.type === 'lunch'
-    if (view === 'course') return r.type === 'course'
+    if (view.startsWith('course:')) return r.course_name === view.replace('course:', '')
     return true
   })
 
@@ -121,10 +130,10 @@ export default function Finance() {
           <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
             <DollarSign className="w-4 h-4" /> 收費明細
           </h3>
-          <div className="flex gap-2">
-            {[['all', '全部'], ['lunch', '午餐費'], ['course', '課程費']].map(([val, label]) => (
-              <button key={val} onClick={() => setView(val)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${view === val ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+          <div className="flex gap-2 flex-wrap justify-end">
+            {filterOptions.map(({ key, label }) => (
+              <button key={key} onClick={() => setView(key)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors whitespace-nowrap ${view === key ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                 {label}
               </button>
             ))}
