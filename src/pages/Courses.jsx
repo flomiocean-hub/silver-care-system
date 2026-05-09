@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Users, Calculator, Download, Plus, Wallet, Clock, Link, Check, Loader2, Trash2 } from 'lucide-react'
+import { BookOpen, Users, Calculator, Download, Plus, Wallet, Clock, Link, Check, Loader2, Trash2, X } from 'lucide-react'
 import { calcProRatedFee } from '../utils/billing'
 import { useAudit } from '../contexts/AuditContext'
 import { useAuth } from '../contexts/AuthContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
-import { getCourses, addCourse, getEnrollments, addEnrollment, updateCourseCount, deleteCourse } from '../services/api/courses'
+import { getCourses, addCourse, getEnrollments, addEnrollment, updateCourseCount, deleteCourse, deleteEnrollment, updateEnrollmentPayment } from '../services/api/courses'
 
 const emptyForm = {
   name: '', session: 'A', instructor: '', description: '', expected_outcome: '',
@@ -21,8 +21,12 @@ export default function Courses() {
   const [enrollments, setEnrollments] = useState([])
   const [loading, setLoading]         = useState(true)
   const [saving, setSaving]           = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [copiedId, setCopiedId]       = useState(null)
+  const [deleteTarget, setDeleteTarget]   = useState(null)
+  const [memberModal, setMemberModal]     = useState(null) // { enrollment, course }
+  const [payInput, setPayInput]           = useState('')
+  const [modalSaving, setModalSaving]     = useState(false)
+  const [cancelConfirm, setCancelConfirm] = useState(false)
+  const [copiedId, setCopiedId]           = useState(null)
   const [calcInput, setCalcInput]   = useState({ totalFee: 200, totalSessions: 4, remaining: 2 })
   const [showForm, setShowForm]     = useState(false)
   const [form, setForm]             = useState(emptyForm)
@@ -133,6 +137,46 @@ export default function Courses() {
     setSaving(false)
   }
 
+  function openMemberModal(enrollment, course) {
+    setMemberModal({ enrollment, course })
+    setPayInput(String(enrollment.total_paid ?? 0))
+    setCancelConfirm(false)
+  }
+
+  async function handleUpdatePayment() {
+    if (!memberModal) return
+    setModalSaving(true)
+    try {
+      const newPaid = Number(payInput) || 0
+      await updateEnrollmentPayment(memberModal.enrollment.id, newPaid)
+      addLog({
+        action: '修改', module: '課程管理',
+        target: `${memberModal.enrollment.member_name} — ${memberModal.course.name}`,
+        detail: `繳費更新：${newPaid} 元`,
+      })
+      await load()
+      setMemberModal(null)
+    } catch (err) { alert(`更新失敗：${err.message}`) }
+    finally { setModalSaving(false) }
+  }
+
+  async function handleCancelEnrollment() {
+    if (!memberModal) return
+    setModalSaving(true)
+    try {
+      const { enrollment, course } = memberModal
+      await deleteEnrollment(enrollment.id, course.id, enrollment.is_waitlist)
+      addLog({
+        action: '刪除', module: '課程管理',
+        target: `${enrollment.member_name} — ${course.name}`,
+        detail: enrollment.is_waitlist ? '取消候補報名' : '取消正取報名',
+      })
+      await load()
+      setMemberModal(null)
+    } catch (err) { alert(`取消失敗：${err.message}`) }
+    finally { setModalSaving(false) }
+  }
+
   async function confirmDeleteCourse() {
     try {
       await deleteCourse(deleteTarget.id)
@@ -179,6 +223,84 @@ export default function Courses() {
           onConfirm={confirmDeleteCourse}
           onCancel={() => setDeleteTarget(null)}
         />
+      )}
+
+      {/* 學員管理 Modal */}
+      {memberModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-700">學員管理</h3>
+              <button onClick={() => setMemberModal(null)} className="p-1 text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-3 text-sm space-y-1">
+              <p className="font-semibold text-gray-800">{memberModal.enrollment.member_name}</p>
+              <p className="text-gray-500">{memberModal.course.name}（{memberModal.course.session} 場）</p>
+              <p className="text-xs text-gray-400">
+                {memberModal.enrollment.is_waitlist
+                  ? `候補第 ${memberModal.enrollment.waitlist_no} 位`
+                  : '正取學員'}
+              </p>
+            </div>
+
+            {/* 繳費管理 */}
+            {memberModal.course.total_fee > 0 && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>應繳金額</span>
+                  <span className="font-medium text-gray-800">{memberModal.course.total_fee} 元</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>目前已繳</span>
+                  <span className={`font-medium ${memberModal.enrollment.total_paid >= memberModal.course.total_fee ? 'text-green-600' : 'text-amber-500'}`}>
+                    {memberModal.enrollment.total_paid} 元
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>尚欠</span>
+                  <span className="font-medium text-red-500">
+                    {Math.max(0, memberModal.course.total_fee - memberModal.enrollment.total_paid)} 元
+                  </span>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">更新已繳金額（元）</label>
+                  <input type="number" value={payInput} onChange={e => setPayInput(e.target.value)}
+                    min={0} max={memberModal.course.total_fee}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <button onClick={handleUpdatePayment} disabled={modalSaving}
+                  className="w-full py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light disabled:opacity-60 flex items-center justify-center gap-2">
+                  {modalSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  儲存繳費紀錄
+                </button>
+              </div>
+            )}
+
+            <div className="border-t border-gray-100 pt-3">
+              {!cancelConfirm ? (
+                <button onClick={() => setCancelConfirm(true)}
+                  className="w-full py-2 border border-red-200 text-red-500 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors">
+                  取消報名
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-red-500 text-center">確定要取消 {memberModal.enrollment.member_name} 的報名嗎？</p>
+                  <div className="flex gap-2">
+                    <button onClick={handleCancelEnrollment} disabled={modalSaving}
+                      className="flex-1 py-2 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 disabled:opacity-60 flex items-center justify-center gap-1">
+                      {modalSaving && <Loader2 className="w-3 h-3 animate-spin" />}確認取消
+                    </button>
+                    <button onClick={() => setCancelConfirm(false)}
+                      className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">保留</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
       {enrollModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -393,14 +515,15 @@ export default function Courses() {
                     {enrolled.map(e => {
                       const diff = e.total_fee - e.total_paid
                       return (
-                        <span key={e.id} className={`text-xs px-2 py-0.5 rounded-full ${
-                          diff === 0 ? 'bg-green-50 text-green-700' :
-                          diff === e.total_fee ? 'bg-red-50 text-red-600' :
-                          'bg-yellow-50 text-yellow-700'
-                        }`}>
+                        <button key={e.id} onClick={() => openMemberModal(e, c)}
+                          className={`text-xs px-2 py-0.5 rounded-full cursor-pointer hover:opacity-75 transition-opacity ${
+                            diff === 0 ? 'bg-green-50 text-green-700' :
+                            diff === e.total_fee ? 'bg-red-50 text-red-600' :
+                            'bg-yellow-50 text-yellow-700'
+                          }`}>
                           {e.member_name}
                           {diff > 0 ? ` (欠${diff})` : ' ✓'}
-                        </span>
+                        </button>
                       )
                     })}
                   </div>
@@ -414,9 +537,10 @@ export default function Courses() {
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {waitlist.map(e => (
-                      <span key={e.id} className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                      <button key={e.id} onClick={() => openMemberModal(e, c)}
+                        className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 hover:opacity-75 transition-opacity">
                         後補{e.waitlist_no} {e.member_name}
-                      </span>
+                      </button>
                     ))}
                   </div>
                 </div>

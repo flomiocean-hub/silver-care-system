@@ -22,6 +22,17 @@ export async function addEnrollment(enrollment) {
   return data
 }
 
+export async function deleteEnrollment(enrollmentId, courseId, isWaitlist) {
+  const { error } = await supabase.from('enrollments').delete().eq('id', enrollmentId)
+  if (error) throw error
+  await updateCourseCount(courseId, isWaitlist ? 'waitlist' : 'enrolled', -1)
+}
+
+export async function updateEnrollmentPayment(enrollmentId, totalPaid) {
+  const { error } = await supabase.from('enrollments').update({ total_paid: totalPaid }).eq('id', enrollmentId)
+  if (error) throw error
+}
+
 export async function deleteCourse(courseId) {
   // 先刪報名記錄，再刪課程
   await supabase.from('enrollments').delete().eq('course_id', courseId)
