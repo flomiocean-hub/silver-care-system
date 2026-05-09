@@ -22,6 +22,13 @@ export async function addEnrollment(enrollment) {
   return data
 }
 
+export async function deleteCourse(courseId) {
+  // 先刪報名記錄，再刪課程
+  await supabase.from('enrollments').delete().eq('course_id', courseId)
+  const { error } = await supabase.from('courses').delete().eq('id', courseId)
+  if (error) throw error
+}
+
 export async function updateCourseCount(courseId, field, delta) {
   const { data: course } = await supabase.from('courses').select(field).eq('id', courseId).single()
   if (!course) return

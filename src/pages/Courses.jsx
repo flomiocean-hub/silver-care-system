@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Users, Calculator, Download, Plus, Wallet, Clock, Link, Check, Loader2 } from 'lucide-react'
+import { BookOpen, Users, Calculator, Download, Plus, Wallet, Clock, Link, Check, Loader2, Trash2 } from 'lucide-react'
 import { calcProRatedFee } from '../utils/billing'
 import { useAudit } from '../contexts/AuditContext'
-import { getCourses, addCourse, getEnrollments, addEnrollment, updateCourseCount } from '../services/api/courses'
+import { useAuth } from '../contexts/AuthContext'
+import ConfirmDialog from '../components/layout/ConfirmDialog'
+import { getCourses, addCourse, getEnrollments, addEnrollment, updateCourseCount, deleteCourse } from '../services/api/courses'
 
 const emptyForm = {
   name: '', session: 'A', instructor: '', description: '', expected_outcome: '',
@@ -14,11 +16,13 @@ const emptyForm = {
 export default function Courses() {
   const navigate = useNavigate()
   const { addLog } = useAudit()
-  const [courses, setCourses]       = useState([])
+  const { isAdmin } = useAuth()
+  const [courses, setCourses]         = useState([])
   const [enrollments, setEnrollments] = useState([])
-  const [loading, setLoading]       = useState(true)
-  const [saving, setSaving]         = useState(false)
-  const [copiedId, setCopiedId]     = useState(null)
+  const [loading, setLoading]         = useState(true)
+  const [saving, setSaving]           = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [copiedId, setCopiedId]       = useState(null)
   const [calcInput, setCalcInput]   = useState({ totalFee: 200, totalSessions: 4, remaining: 2 })
   const [showForm, setShowForm]     = useState(false)
   const [form, setForm]             = useState(emptyForm)
@@ -129,6 +133,17 @@ export default function Courses() {
     setSaving(false)
   }
 
+  async function confirmDeleteCourse() {
+    try {
+      await deleteCourse(deleteTarget.id)
+      addLog({ action: '刪除', module: '課程管理', target: deleteTarget.name, detail: '刪除課程及所有報名記錄' })
+      setDeleteTarget(null)
+      await load()
+    } catch (err) {
+      alert(`刪除失敗：${err.message}`)
+    }
+  }
+
   function exportCSV() {
     const rows = [['學員', '課程', '堂次', '應繳', '已繳', '差額', '後補']]
     enrollments.forEach(e => {
@@ -157,6 +172,14 @@ export default function Courses() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      {deleteTarget && (
+        <ConfirmDialog
+          title={`確定要刪除「${deleteTarget.name}」嗎？`}
+          message="課程及所有報名記錄將一併移除，此操作無法復原。"
+          onConfirm={confirmDeleteCourse}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
       {enrollModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 space-y-4">
@@ -295,11 +318,19 @@ export default function Courses() {
                   <p className="text-xs text-gray-400">{c.session} 場 · {c.day} {c.time} · {c.instructor}</p>
                   {c.start_date && <p className="text-xs text-gray-400">開課：{c.start_date}</p>}
                 </div>
-                <div className="text-right shrink-0">
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${isFull ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                    {isFull ? `額滿` : `剩 ${c.capacity - c.enrolled} 名`}
-                  </span>
-                  <p className="text-xs text-gray-400 mt-1">{c.total_fee} 元 / {c.total_sessions} 堂</p>
+                <div className="flex items-start gap-2 shrink-0">
+                  <div className="text-right">
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${isFull ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                      {isFull ? `額滿` : `剩 ${c.capacity - c.enrolled} 名`}
+                    </span>
+                    <p className="text-xs text-gray-400 mt-1">{c.total_fee} 元 / {c.total_sessions} 堂</p>
+                  </div>
+                  {isAdmin && (
+                    <button onClick={() => setDeleteTarget(c)}
+                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
 
