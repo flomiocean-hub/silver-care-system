@@ -14,6 +14,7 @@ import AIInsights from './pages/AIInsights'
 import CourseRegister from './pages/CourseRegister'
 import AuditLog from './pages/AuditLog'
 import StaffManagement from './pages/StaffManagement'
+import CareStations from './pages/CareStations'
 
 function AdminShell() {
   const { user } = useAuth()
@@ -34,7 +35,8 @@ function AdminShell() {
               <Route path="/finance"     element={<Finance />} />
               <Route path="/ai-insights" element={<AIInsights />} />
               <Route path="/logs"        element={<AuditLog />} />
-              <Route path="/staff"       element={<StaffManagement />} />
+              <Route path="/staff"         element={<StaffManagement />} />
+              <Route path="/care-stations" element={<CareStations />} />
             </Routes>
           </main>
         </div>

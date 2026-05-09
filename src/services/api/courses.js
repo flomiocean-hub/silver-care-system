@@ -1,23 +1,24 @@
 import { supabase } from '../supabaseClient'
+import { ORG_ID } from '../../config/org'
 
 export async function getCourses() {
-  const { data } = await supabase.from('courses').select('*').order('id')
+  const { data } = await supabase.from('courses').select('*').eq('org_id', ORG_ID).order('id')
   return data ?? []
 }
 
 export async function addCourse(course) {
-  const { data, error } = await supabase.from('courses').insert(course).select().single()
+  const { data, error } = await supabase.from('courses').insert({ ...course, org_id: ORG_ID }).select().single()
   if (error) throw error
   return data
 }
 
 export async function getEnrollments() {
-  const { data } = await supabase.from('enrollments').select('*').order('enrolled_at')
+  const { data } = await supabase.from('enrollments').select('*').eq('org_id', ORG_ID).order('enrolled_at')
   return data ?? []
 }
 
 export async function addEnrollment(enrollment) {
-  const { data, error } = await supabase.from('enrollments').insert(enrollment).select().single()
+  const { data, error } = await supabase.from('enrollments').insert({ ...enrollment, org_id: ORG_ID }).select().single()
   if (error) throw error
   return data
 }
@@ -39,7 +40,6 @@ export async function updateEnrollmentMaterialPaid(enrollmentId, materialPaid) {
 }
 
 export async function deleteCourse(courseId) {
-  // 先刪報名記錄，再刪課程
   await supabase.from('enrollments').delete().eq('course_id', courseId)
   const { error } = await supabase.from('courses').delete().eq('id', courseId)
   if (error) throw error

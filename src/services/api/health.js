@@ -1,7 +1,8 @@
 import { supabase } from '../supabaseClient'
+import { ORG_ID } from '../../config/org'
 
 export async function getHealthRecords() {
-  const { data } = await supabase.from('health_records').select('*, members(gender)').order('date')
+  const { data } = await supabase.from('health_records').select('*, members(gender)').eq('org_id', ORG_ID).order('date')
   return (data ?? []).map(r => ({
     ...r,
     member_id: r.member_id,
@@ -10,6 +11,6 @@ export async function getHealthRecords() {
 }
 
 export async function addHealthRecord(record) {
-  const { error } = await supabase.from('health_records').insert(record)
+  const { error } = await supabase.from('health_records').insert({ ...record, org_id: ORG_ID })
   if (error) throw error
 }

@@ -1,9 +1,11 @@
 import { supabase } from '../supabaseClient'
+import { ORG_ID } from '../../config/org'
 
 export async function getAttendanceSummary() {
   const { data } = await supabase
     .from('attendance_summary')
     .select('*')
+    .eq('org_id', ORG_ID)
     .order('date')
     .limit(30)
   return (data ?? []).map(r => ({
@@ -17,6 +19,6 @@ export async function getAttendanceSummary() {
 export async function upsertAttendance(date, actualCount, expectedCount) {
   const { error } = await supabase
     .from('attendance_summary')
-    .upsert({ date, actual_count: actualCount, expected_count: expectedCount })
+    .upsert({ org_id: ORG_ID, date, actual_count: actualCount, expected_count: expectedCount })
   if (error) throw error
 }

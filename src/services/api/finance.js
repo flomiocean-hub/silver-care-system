@@ -1,27 +1,29 @@
 import { supabase } from '../supabaseClient'
+import { ORG_ID } from '../../config/org'
 
 // 手動建立的記錄（午餐費 + 材料費）
 export async function getLunchRecords() {
   const { data } = await supabase
     .from('finance_records')
     .select('*')
+    .eq('org_id', ORG_ID)
     .in('type', ['lunch', 'material'])
     .order('created_at')
   return data ?? []
 }
 
 export async function addLunchRecord(record) {
-  const { error } = await supabase.from('finance_records').insert(record)
+  const { error } = await supabase.from('finance_records').insert({ ...record, org_id: ORG_ID })
   if (error) throw error
 }
 
 export async function updateFinanceRecord(id, updates) {
-  const { error } = await supabase.from('finance_records').update(updates).eq('id', id)
+  const { error } = await supabase.from('finance_records').update(updates).eq('id', id).eq('org_id', ORG_ID)
   if (error) throw error
 }
 
 export async function deleteLunchRecord(id) {
-  const { error } = await supabase.from('finance_records').delete().eq('id', id)
+  const { error } = await supabase.from('finance_records').delete().eq('id', id).eq('org_id', ORG_ID)
   if (error) throw error
 }
 
@@ -30,6 +32,7 @@ export async function getCourseFinanceRecords() {
   const { data } = await supabase
     .from('enrollments')
     .select('*, courses(name, session, materials_fee)')
+    .eq('org_id', ORG_ID)
     .eq('is_waitlist', false)
     .order('enrolled_at')
 
