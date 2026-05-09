@@ -6,7 +6,7 @@ export const hasGemini = !!API_KEY
 let model = null
 if (API_KEY) {
   const genAI = new GoogleGenerativeAI(API_KEY)
-  model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+  model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 }
 
 // ── NLP 問答 ──────────────────────────────────────────────────
