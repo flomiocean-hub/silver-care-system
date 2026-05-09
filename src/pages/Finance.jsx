@@ -14,23 +14,30 @@ function getStatus(r) {
   return { label: '未繳', icon: '⚠️', cls: 'bg-yellow-50 text-yellow-700' }
 }
 
+function typeLabel(r) {
+  if (r.type === 'lunch')                        return '🍱 午餐費'
+  if (r.type === 'material' && !r.is_material)   return '🎨 材料費'
+  if (r.is_material)                             return `🎨 材料費（${r.course_name}）`
+  return `📚 ${r.course_name ?? '課程費'}`
+}
+
 const emptyForm = { member_name: '', type: 'lunch', amount_due: 0, amount_paid: 0, month: new Date().toISOString().slice(0, 7) }
 
 export default function Finance() {
   const { addLog } = useAudit()
   const { user }   = useAuth()
-  const [records, setRecords]             = useState([])
-  const [loading, setLoading]             = useState(true)
-  const [view, setView]                   = useState('all')
-  const [emailSent, setEmailSent]         = useState(false)
-  const [showForm, setShowForm]           = useState(false)
-  const [form, setForm]                   = useState(emptyForm)
-  const [saving, setSaving]               = useState(false)
-  const [editPay, setEditPay]             = useState(null)
-  const [manualModal, setManualModal]     = useState(null)
-  const [manualPayInput, setManualPayInput] = useState('')
-  const [delConfirm, setDelConfirm]       = useState(false)
-  const [modalSaving, setModalSaving]     = useState(false)
+  const [records, setRecords]         = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [view, setView]               = useState('all')
+  const [emailSent, setEmailSent]     = useState(false)
+  const [showForm, setShowForm]       = useState(false)
+  const [form, setForm]               = useState(emptyForm)
+  const [saving, setSaving]           = useState(false)
+  // 統一收款 modal（所有記錄類型共用）
+  const [payModal, setPayModal]       = useState(null)
+  const [payInput, setPayInput]       = useState('')
+  const [delConfirm, setDelConfirm]   = useState(false)
+  const [modalSaving, setModalSaving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -63,6 +70,12 @@ export default function Finance() {
   const totalOwed  = totalDue - totalPaid
   const unpaidList = filtered.filter(r => r.amount_paid < r.amount_due)
 
+  function openPayModal(r) {
+    setPayModal(r)
+    setPayInput(String(r.amount_paid ?? 0))
+    setDelConfirm(false)
+  }
+
   async function handleAddRecord(e) {
     e.preventDefault()
     setSaving(true)
@@ -74,8 +87,8 @@ export default function Finance() {
         amount_due:  Number(form.amount_due),
         amount_paid: Number(form.amount_paid),
       })
-      const typeLabel = form.type === 'material' ? '材料費' : '午餐費'
-      addLog({ action: '新增', module: '財務追蹤', target: form.member_name, detail: `新增${typeLabel} ${form.amount_due} 元` })
+      const label = form.type === 'material' ? '材料費' : '午餐費'
+      addLog({ action: '新增', module: '財務追蹤', target: form.member_name, detail: `新增${label} ${form.amount_due} 元` })
       setForm(emptyForm)
       setShowForm(false)
       await load()
@@ -83,55 +96,46 @@ export default function Finance() {
     finally { setSaving(false) }
   }
 
-  async function handleSavePay(r) {
-    const newPaid = Number(editPay.value) || 0
-    try {
-      if (r.is_material && r.enrollment_id) {
-        await updateEnrollmentMaterialPaid(r.enrollment_id, newPaid)
-        addLog({ action: '修改', module: '財務追蹤', target: r.member_name, detail: `材料費收款更新：${newPaid} 元（${r.course_name}）` })
-      } else if (r.enrollment_id) {
-        await updateEnrollmentPaid(r.enrollment_id, newPaid)
-        addLog({ action: '修改', module: '財務追蹤', target: r.member_name, detail: `課程費收款更新：${newPaid} 元` })
-      } else {
-        await updateFinanceRecord(r.id, { amount_paid: newPaid })
-        addLog({ action: '修改', module: '財務追蹤', target: r.member_name, detail: `更新繳費 ${newPaid} 元` })
-      }
-      setEditPay(null)
-      await load()
-    } catch (err) { alert(`更新失敗：${err.message}`) }
-  }
-
-  async function handleManualPay() {
+  async function handlePaySave() {
+    if (!payModal) return
     setModalSaving(true)
+    const newPaid = Number(payInput) || 0
     try {
-      await updateFinanceRecord(manualModal.id, { amount_paid: Number(manualPayInput) })
-      const typeLabel = manualModal.type === 'material' ? '材料費' : '午餐費'
-      addLog({ action: '修改', module: '財務追蹤', target: manualModal.member_name, detail: `${typeLabel}收款更新：${manualPayInput} 元（操作者：${user?.name}）` })
+      if (payModal.is_material && payModal.enrollment_id) {
+        await updateEnrollmentMaterialPaid(payModal.enrollment_id, newPaid)
+        addLog({ action: '修改', module: '財務追蹤', target: payModal.member_name, detail: `材料費收款：${newPaid} 元（${payModal.course_name}）（操作者：${user?.name}）` })
+      } else if (payModal.enrollment_id) {
+        await updateEnrollmentPaid(payModal.enrollment_id, newPaid)
+        addLog({ action: '修改', module: '財務追蹤', target: payModal.member_name, detail: `課程費收款：${newPaid} 元（${payModal.course_name}）（操作者：${user?.name}）` })
+      } else {
+        await updateFinanceRecord(payModal.id, { amount_paid: newPaid })
+        const label = payModal.type === 'material' ? '材料費' : '午餐費'
+        addLog({ action: '修改', module: '財務追蹤', target: payModal.member_name, detail: `${label}收款：${newPaid} 元（操作者：${user?.name}）` })
+      }
       await load()
-      setManualModal(null)
+      setPayModal(null)
     } catch (err) { alert(`更新失敗：${err.message}`) }
     finally { setModalSaving(false) }
   }
 
-  async function handleManualDelete() {
+  async function handlePayDelete() {
+    if (!payModal) return
     setModalSaving(true)
     try {
-      await deleteLunchRecord(manualModal.id)
-      const typeLabel = manualModal.type === 'material' ? '材料費' : '午餐費'
-      addLog({ action: '刪除', module: '財務追蹤', target: manualModal.member_name, detail: `刪除${typeLabel}記錄（操作者：${user?.name}，身份：${user?.role}）` })
+      await deleteLunchRecord(payModal.id)
+      const label = payModal.type === 'material' ? '材料費' : '午餐費'
+      addLog({ action: '刪除', module: '財務追蹤', target: payModal.member_name, detail: `刪除${label}記錄（操作者：${user?.name}，身份：${user?.role}）` })
       await load()
-      setManualModal(null)
+      setPayModal(null)
     } catch (err) { alert(`刪除失敗：${err.message}`) }
     finally { setModalSaving(false) }
   }
 
   function exportCSV() {
     const rows = [['姓名', '類型', '課程', '月份', '應收', '已收', '差額', '狀態']]
-    records.forEach(r => {
-      if ((r.amount_due ?? 0) === 0) return
+    filtered.forEach(r => {
       const s = getStatus(r)
-      const typeLabel = r.type === 'lunch' ? '午餐費' : r.type === 'material' ? '材料費' : '課程費'
-      rows.push([r.member_name, typeLabel, r.course_name ?? '', r.month,
+      rows.push([r.member_name, typeLabel(r), r.course_name ?? '', r.month,
         r.amount_due, r.amount_paid, r.amount_due - r.amount_paid, s.label])
     })
     const csv = rows.map(r => r.join(',')).join('\n')
@@ -152,6 +156,8 @@ export default function Finance() {
       <Loader2 className="w-8 h-8 text-primary animate-spin" />
     </div>
   )
+
+  const isManualRecord = r => (r.type === 'lunch' || r.type === 'material') && !r.is_material
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
@@ -192,8 +198,7 @@ export default function Finance() {
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">費用類型</label>
-              <select value={form.type}
-                onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+              <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-white">
                 <option value="lunch">🍱 午餐費</option>
                 <option value="material">🎨 材料費</option>
@@ -246,9 +251,10 @@ export default function Finance() {
           </div>
           <div className="flex flex-wrap gap-2">
             {unpaidList.map(r => (
-              <span key={r.id} className="text-xs bg-white border border-red-200 text-red-600 px-3 py-1 rounded-full">
+              <button key={r.id} onClick={() => openPayModal(r)}
+                className="text-xs bg-white border border-red-200 text-red-600 px-3 py-1 rounded-full hover:bg-red-50 transition-colors">
                 {r.member_name} 欠 {r.amount_due - r.amount_paid} 元
-              </span>
+              </button>
             ))}
           </div>
         </div>
@@ -295,41 +301,22 @@ export default function Finance() {
             </thead>
             <tbody>
               {filtered.map(r => {
-                const s = getStatus(r)
+                const s    = getStatus(r)
                 const diff = r.amount_due - r.amount_paid
-                const isEditing = editPay?.record.id === r.id
-                const isManual = (r.type === 'lunch' || r.type === 'material') && !r.is_material
-                const typeLabel = r.type === 'lunch' ? '🍱 午餐費'
-                  : (r.type === 'material' || r.is_material) ? `🎨 材料費（${r.course_name}）`
-                  : `📚 ${r.course_name ?? '課程費'}`
                 return (
                   <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="py-3 px-3 font-medium text-gray-800">
-                      {isManual ? (
-                        <button
-                          onClick={() => { setManualModal(r); setManualPayInput(String(r.amount_paid)); setDelConfirm(false) }}
-                          className="text-primary hover:underline font-medium text-left">
-                          {r.member_name}
-                        </button>
-                      ) : r.member_name}
+                    <td className="py-3 px-3">
+                      <button onClick={() => openPayModal(r)}
+                        className="font-medium text-primary hover:underline text-left">
+                        {r.member_name}
+                      </button>
                     </td>
-                    <td className="py-3 px-3 text-gray-500 text-xs">{typeLabel}</td>
-                    <td className="py-3 px-3 text-right">{r.amount_due} 元</td>
+                    <td className="py-3 px-3 text-gray-500 text-xs">{typeLabel(r)}</td>
+                    <td className="py-3 px-3 text-right text-gray-700">{r.amount_due} 元</td>
                     <td className="py-3 px-3 text-right">
-                      {isEditing ? (
-                        <div className="flex items-center gap-1 justify-end">
-                          <input type="number" value={editPay.value}
-                            onChange={e => setEditPay(p => ({ ...p, value: e.target.value }))}
-                            className="w-20 border border-gray-300 rounded px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-primary" />
-                          <button onClick={() => handleSavePay(r)} className="text-xs text-primary font-medium hover:underline">存</button>
-                          <button onClick={() => setEditPay(null)} className="text-xs text-gray-400 hover:underline">取消</button>
-                        </div>
-                      ) : (
-                        <button onClick={() => setEditPay({ record: r, value: String(r.amount_paid) })}
-                          className="text-green-600 hover:underline cursor-pointer">
-                          {r.amount_paid} 元
-                        </button>
-                      )}
+                      <span className={r.amount_paid > 0 ? 'text-green-600 font-medium' : 'text-gray-400'}>
+                        {r.amount_paid} 元
+                      </span>
                     </td>
                     <td className={`py-3 px-3 text-right font-medium ${diff > 0 ? 'text-red-500' : 'text-gray-400'}`}>
                       {diff > 0 ? `-${diff} 元` : '—'}
@@ -350,50 +337,67 @@ export default function Finance() {
         </div>
       </div>
 
-      {/* 午餐費／材料費管理 Modal */}
-      {manualModal && (
+      {/* 統一收款 Modal */}
+      {payModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-800">
-                {manualModal.type === 'material' ? '🎨 材料費管理' : '🍱 午餐費管理'}
-              </h3>
-              <button onClick={() => setManualModal(null)}><X className="w-4 h-4 text-gray-400" /></button>
+              <h3 className="font-semibold text-gray-800">收款登錄</h3>
+              <button onClick={() => setPayModal(null)}><X className="w-4 h-4 text-gray-400" /></button>
             </div>
-            <p className="text-sm text-gray-600 mb-1">長者：<span className="font-medium">{manualModal.member_name}</span></p>
-            <p className="text-sm text-gray-500 mb-4">月份：{manualModal.month}｜應收：{manualModal.amount_due} 元</p>
+
+            <div className="bg-gray-50 rounded-xl p-3 mb-4 text-sm space-y-1">
+              <p className="font-semibold text-gray-800">{payModal.member_name}</p>
+              <p className="text-gray-500">{typeLabel(payModal)}</p>
+              {payModal.month && <p className="text-xs text-gray-400">月份：{payModal.month}</p>}
+            </div>
+
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-gray-500">應收</span>
+              <span className="font-medium text-gray-800">{payModal.amount_due} 元</span>
+            </div>
+            <div className="flex justify-between text-sm mb-4">
+              <span className="text-gray-500">尚欠</span>
+              <span className={`font-medium ${payModal.amount_due - payModal.amount_paid > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                {Math.max(0, payModal.amount_due - payModal.amount_paid)} 元
+              </span>
+            </div>
 
             <div className="mb-4">
               <label className="text-xs text-gray-500 block mb-1">更新已收金額（元）</label>
-              <input type="number" value={manualPayInput}
-                onChange={e => setManualPayInput(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              <input type="number" value={payInput} onChange={e => setPayInput(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus />
             </div>
-            <button onClick={handleManualPay} disabled={modalSaving}
+
+            <button onClick={handlePaySave} disabled={modalSaving}
               className="w-full py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light disabled:opacity-60 flex items-center justify-center gap-2 mb-3">
               {modalSaving && <Loader2 className="w-4 h-4 animate-spin" />} 確認收款
             </button>
 
-            {!delConfirm ? (
-              <button onClick={() => setDelConfirm(true)}
-                className="w-full py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-medium hover:bg-red-100">
-                刪除此筆記錄
-              </button>
-            ) : (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-                <p className="text-xs text-red-700 font-medium mb-1">確認刪除？此操作將記錄至審計日誌。</p>
-                <p className="text-xs text-red-500 mb-3">操作者：{user?.name}（{user?.role}）</p>
-                <div className="flex gap-2">
-                  <button onClick={handleManualDelete} disabled={modalSaving}
-                    className="flex-1 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 disabled:opacity-60">
-                    確認刪除
-                  </button>
-                  <button onClick={() => setDelConfirm(false)}
-                    className="flex-1 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium">
-                    取消
-                  </button>
+            {/* 刪除：僅手動建立的記錄（午餐費 / 手動材料費）才顯示 */}
+            {isManualRecord(payModal) && (
+              !delConfirm ? (
+                <button onClick={() => setDelConfirm(true)}
+                  className="w-full py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-medium hover:bg-red-100">
+                  刪除此筆記錄
+                </button>
+              ) : (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                  <p className="text-xs text-red-700 font-medium mb-1">確認刪除？此操作將記錄至審計日誌。</p>
+                  <p className="text-xs text-red-500 mb-3">操作者：{user?.name}（{user?.role}）</p>
+                  <div className="flex gap-2">
+                    <button onClick={handlePayDelete} disabled={modalSaving}
+                      className="flex-1 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 disabled:opacity-60">
+                      確認刪除
+                    </button>
+                    <button onClick={() => setDelConfirm(false)}
+                      className="flex-1 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium">
+                      取消
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )
             )}
           </div>
         </div>
