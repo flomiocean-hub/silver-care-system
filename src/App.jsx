@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { AuditProvider } from './contexts/AuditContext'
 import Navbar from './components/layout/Navbar'
@@ -15,6 +15,11 @@ import CourseRegister from './pages/CourseRegister'
 import AuditLog from './pages/AuditLog'
 import StaffManagement from './pages/StaffManagement'
 import CareStations from './pages/CareStations'
+
+function AdminOnly({ children }) {
+  const { isAdmin } = useAuth()
+  return isAdmin ? children : <Navigate to="/" replace />
+}
 
 function AdminShell() {
   const { user } = useAuth()
@@ -35,8 +40,8 @@ function AdminShell() {
               <Route path="/finance"     element={<Finance />} />
               <Route path="/ai-insights" element={<AIInsights />} />
               <Route path="/logs"        element={<AuditLog />} />
-              <Route path="/staff"         element={<StaffManagement />} />
-              <Route path="/care-stations" element={<CareStations />} />
+              <Route path="/staff"         element={<AdminOnly><StaffManagement /></AdminOnly>} />
+              <Route path="/care-stations" element={<AdminOnly><CareStations /></AdminOnly>} />
             </Routes>
           </main>
         </div>
