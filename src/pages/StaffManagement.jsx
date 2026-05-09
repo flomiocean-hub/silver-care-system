@@ -18,7 +18,7 @@ export default function StaffManagement() {
   const [orgs, setOrgs]                   = useState([])
   const [showForm, setShowForm]           = useState(false)
   const [deleteTarget, setDeleteTarget]   = useState(null)
-  const [form, setForm]                   = useState({ username: '', password: '', name: '', org_id: currentOrg?.id ?? 1 })
+  const [form, setForm]                   = useState({ username: '', password: '', name: '', org_id: currentOrg?.id ?? 1, role: '關懷站專員' })
   const [formError, setFormError]         = useState('')
 
   useEffect(() => {
@@ -42,9 +42,9 @@ export default function StaffManagement() {
       return
     }
     const orgName = orgs.find(o => o.id === Number(form.org_id))?.name ?? ''
-    addStaff({ username: form.username.trim(), password: form.password, name: form.name.trim(), org_id: Number(form.org_id) })
-    addLog({ action: '新增', module: '帳號管理', target: form.name.trim(), detail: `新增關懷站專員帳號 ${form.username.trim()}，所屬單位：${orgName}` })
-    setForm({ username: '', password: '', name: '', org_id: currentOrg?.id ?? 1 })
+    addStaff({ username: form.username.trim(), password: form.password, name: form.name.trim(), org_id: Number(form.org_id), role: form.role })
+    addLog({ action: '新增', module: '帳號管理', target: form.name.trim(), detail: `新增${form.role}帳號 ${form.username.trim()}，所屬單位：${orgName}` })
+    setForm({ username: '', password: '', name: '', org_id: currentOrg?.id ?? 1, role: '關懷站專員' })
     setFormError('')
     setShowForm(false)
   }
@@ -101,6 +101,17 @@ export default function StaffManagement() {
               </select>
               {!isSuperAdmin && <p className="text-xs text-gray-400 mt-0.5">自動設為目前登入單位</p>}
             </div>
+            {isSuperAdmin && (
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">角色 *</label>
+                <select value={form.role}
+                  onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="關懷站專員">關懷站專員</option>
+                  <option value="管理者">管理者</option>
+                </select>
+              </div>
+            )}
             <div>
               <label className="text-xs text-gray-500 block mb-1">帳號 *</label>
               <input required value={form.username}
@@ -122,7 +133,10 @@ export default function StaffManagement() {
             <button type="button" onClick={() => { setShowForm(false); setFormError('') }}
               className="px-5 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">取消</button>
           </div>
-          <p className="text-xs text-gray-400">新建帳號角色固定為「關懷站專員」，管理者帳號無法在此建立。</p>
+          {isSuperAdmin
+            ? <p className="text-xs text-gray-400">超級管理者可建立「關懷站專員」或「管理者」帳號。超級管理者帳號無法在此建立。</p>
+            : <p className="text-xs text-gray-400">新建帳號角色固定為「關懷站專員」，管理者帳號無法在此建立。</p>
+          }
         </form>
       )}
 

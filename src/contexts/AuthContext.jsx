@@ -46,9 +46,9 @@ export function AuthProvider({ children }) {
     // 不清除 sc_org，保留記憶方便下次登入
   }
 
-  function addStaff({ username, password, name, org_id }) {
+  function addStaff({ username, password, name, org_id, role = '關懷站專員' }) {
     const id = Math.max(...users.map(u => u.id)) + 1
-    setUsers(p => [...p, { id, username, password, name, role: '關懷站專員', org_id }])
+    setUsers(p => [...p, { id, username, password, name, role, org_id }])
   }
 
   function removeStaff(id) {
