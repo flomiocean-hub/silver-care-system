@@ -29,7 +29,6 @@ export default function Finance() {
   const [records, setRecords]         = useState([])
   const [loading, setLoading]         = useState(true)
   const [view, setView]               = useState('all')
-  const [emailSent, setEmailSent]     = useState(false)
   const [showForm, setShowForm]       = useState(false)
   const [form, setForm]               = useState(emptyForm)
   const [saving, setSaving]           = useState(false)
@@ -145,12 +144,6 @@ export default function Finance() {
     addLog({ action: '匯出', module: '財務追蹤', target: '財務收支明細.csv', detail: `匯出 ${filtered.length} 筆` })
   }
 
-  function handleEmailAlert() {
-    setEmailSent(true)
-    addLog({ action: '發送通知', module: '財務追蹤', target: 'AI 欠費通知', detail: `發送 ${unpaidList.length} 筆欠費通知` })
-    setTimeout(() => setEmailSent(false), 4000)
-  }
-
   if (loading) return (
     <div className="flex items-center justify-center py-32">
       <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -169,10 +162,10 @@ export default function Finance() {
         <div className="flex gap-2 flex-wrap justify-end">
           <button onClick={() => setShowForm(p => !p)}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-light text-sm font-medium shadow-sm">
-            <Plus className="w-4 h-4" /> 新增費用
+            <Plus className="w-4 h-4" /> 新增餐費
           </button>
-          <button onClick={handleEmailAlert}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 text-sm font-medium shadow-sm">
+          <button disabled title="功能尚未開放"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-400 rounded-xl text-sm font-medium cursor-not-allowed">
             <Mail className="w-4 h-4" /> 發送欠費通知
           </button>
           <button onClick={exportCSV}
@@ -232,15 +225,6 @@ export default function Finance() {
               className="px-5 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">取消</button>
           </div>
         </form>
-      )}
-
-      {emailSent && (
-        <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-300 rounded-xl">
-          <Mail className="w-5 h-5 text-amber-600 shrink-0" />
-          <p className="text-amber-700 font-semibold text-sm">
-            已發送欠費通知 · 共 {unpaidList.length} 筆，總欠費 {totalOwed.toLocaleString()} 元
-          </p>
-        </div>
       )}
 
       {unpaidList.length > 0 && (
