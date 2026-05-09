@@ -5,6 +5,7 @@ import AlertPanel from '../components/dashboard/AlertPanel'
 import { getMembers } from '../services/api/members'
 import { getAttendanceSummary } from '../services/api/attendance'
 import { getFinanceRecords } from '../services/api/finance'
+import { getTodayCheckins } from '../services/api/checkins'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, BarChart, Bar
@@ -14,14 +15,18 @@ export default function Dashboard() {
   const [members, setMembers]       = useState([])
   const [attendance, setAttendance] = useState([])
   const [finance, setFinance]       = useState([])
+  const [todayCheckins, setTodayCheckins] = useState([])
   const [loading, setLoading]       = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [m, a, f] = await Promise.all([getMembers(), getAttendanceSummary(), getFinanceRecords()])
+    const [m, a, f, tc] = await Promise.all([
+      getMembers(), getAttendanceSummary(), getFinanceRecords(), getTodayCheckins()
+    ])
     setMembers(m)
     setAttendance(a)
     setFinance(f)
+    setTodayCheckins(tc)
     setLoading(false)
   }, [])
 
@@ -35,10 +40,10 @@ export default function Dashboard() {
     )
   }
 
-  const today          = attendance[attendance.length - 1]
-  const todayCount     = today?.count ?? 0
-  const todayExpected  = today?.expected ?? 0
-  const todayRate      = today?.rate ?? 0
+  const todayCount     = todayCheckins.length
+  const activeMembers  = members.filter(m => m.member_type === '出席型').length
+  const todayExpected  = activeMembers || members.length
+  const todayRate      = todayExpected > 0 ? Math.round((todayCount / todayExpected) * 100) : 0
   const totalMembers   = members.length
   const highRiskCount  = members.filter(m => m.risk_score >= 70).length
   const unpaidTotal    = finance.reduce((s, r) => s + (r.amount_due - r.amount_paid), 0)
