@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, UserPlus, Trash2, Edit3, Phone, MapPin, User, Loader2 } from 'lucide-react'
 import { getRiskLevel } from '../utils/riskScoring'
+import { toRocDate, rocToIso } from '../utils/dateUtils'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
 import { useAuth } from '../contexts/AuthContext'
 import { useAudit } from '../contexts/AuditContext'
@@ -144,17 +145,22 @@ export default function Members() {
           className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
           <h3 className="font-semibold text-gray-700">{showForm === 'edit' ? '修改長者資料' : '新增長者資料'}</h3>
           <div className="grid grid-cols-2 gap-4">
-            {[
-              { key: 'name', label: '姓名 *', req: true },
-              { key: 'birthday', label: '生日 *', req: true, type: 'date' },
-            ].map(({ key, label, req, type }) => (
-              <div key={key}>
-                <label className="text-xs text-gray-500 block mb-1">{label}</label>
-                <input required={req} type={type || 'text'} value={form[key] ?? ''}
-                  onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-            ))}
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">姓名 *</label>
+              <input required value={form.name ?? ''} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">生日（西元 或 民國年）</label>
+              <input required value={form.birthday ?? ''} placeholder="1949-11-15 或 038/11/15"
+                onChange={e => {
+                  const v = e.target.value
+                  const iso = v.includes('/') ? rocToIso(v) : v
+                  setForm(p => ({ ...p, birthday: iso }))
+                }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              {form.birthday && <p className="text-xs text-gray-400 mt-1">{toRocDate(form.birthday)}</p>}
+            </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">性別</label>
               <select value={form.gender} onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}
@@ -254,7 +260,7 @@ export default function Members() {
                         <p className="font-semibold text-gray-800">{m.name}</p>
                         <span className="text-xs text-gray-400">{m.id}</span>
                       </div>
-                      <p className="text-xs text-gray-400">{m.birthday} · {m.gender} · {m.member_type}</p>
+                      <p className="text-xs text-gray-400">{m.birthday} · <span className="text-gray-300">{toRocDate(m.birthday)}</span> · {m.gender} · {m.member_type}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
