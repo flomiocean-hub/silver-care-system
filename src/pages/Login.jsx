@@ -81,6 +81,10 @@ export default function Login() {
           <div className="pt-3 border-t border-gray-100">
             <p className="text-xs text-gray-400 mb-2 font-medium">展示版帳號</p>
             <div className="space-y-1.5">
+              <div className="flex items-center justify-between bg-purple-50 rounded-lg px-3 py-2">
+                <span className="text-xs text-purple-700 font-medium">超級管理者</span>
+                <span className="text-xs text-purple-600 font-mono">superadmin / super2025</span>
+              </div>
               <div className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-2">
                 <span className="text-xs text-green-700 font-medium">管理者</span>
                 <span className="text-xs text-green-600 font-mono">admin / admin2025</span>

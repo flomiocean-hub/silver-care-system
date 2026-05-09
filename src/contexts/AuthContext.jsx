@@ -1,8 +1,9 @@
 import { createContext, useContext, useState } from 'react'
 
 const INITIAL_USERS = [
-  { id: 1, username: 'admin',   password: 'admin2025',  name: '系統管理員', role: '管理者' },
-  { id: 2, username: 'staff01', password: 'staff2025',  name: '李志明',     role: '關懷站專員' },
+  { id: 1, username: 'superadmin', password: 'super2025',  name: 'Marco',    role: '超級管理者' },
+  { id: 2, username: 'admin',      password: 'admin2025',  name: '系統管理員', role: '管理者' },
+  { id: 3, username: 'staff01',    password: 'staff2025',  name: '李志明',     role: '關懷站專員' },
 ]
 
 const STORAGE_KEY = 'sc_user'
@@ -41,10 +42,13 @@ export function AuthProvider({ children }) {
     setUsers(p => p.filter(u => u.id !== id))
   }
 
+  const isSuperAdmin = user?.role === '超級管理者'
+  const isAdmin      = user?.role === '管理者' || isSuperAdmin
+
   return (
     <AuthContext.Provider value={{
       user, users, login, logout, addStaff, removeStaff,
-      isAdmin: user?.role === '管理者',
+      isAdmin, isSuperAdmin,
     }}>
       {children}
     </AuthContext.Provider>

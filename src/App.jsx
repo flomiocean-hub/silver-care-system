@@ -21,6 +21,11 @@ function AdminOnly({ children }) {
   return isAdmin ? children : <Navigate to="/" replace />
 }
 
+function SuperAdminOnly({ children }) {
+  const { isSuperAdmin } = useAuth()
+  return isSuperAdmin ? children : <Navigate to="/" replace />
+}
+
 function AdminShell() {
   const { user } = useAuth()
   if (!user) return <Login />
@@ -41,7 +46,7 @@ function AdminShell() {
               <Route path="/ai-insights" element={<AIInsights />} />
               <Route path="/logs"        element={<AuditLog />} />
               <Route path="/staff"         element={<AdminOnly><StaffManagement /></AdminOnly>} />
-              <Route path="/care-stations" element={<AdminOnly><CareStations /></AdminOnly>} />
+              <Route path="/care-stations" element={<SuperAdminOnly><CareStations /></SuperAdminOnly>} />
             </Routes>
           </main>
         </div>
