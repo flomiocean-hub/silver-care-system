@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Search, CheckCircle, Upload, Clock, AlertTriangle } from 'lucide-react'
+import { Search, CheckCircle, Upload, Clock, AlertTriangle, Loader2 } from 'lucide-react'
 import { mockMembers, mockTodayCheckins, mockHealthData } from '../services/mockData'
 import { getBPStatus, checkWeightAlert } from '../utils/riskScoring'
 import { useAudit } from '../contexts/AuditContext'
+import { askGeminiOCR, hasGemini } from '../services/geminiService'
 
 export default function CheckIn() {
   const { addLog } = useAudit()
@@ -13,6 +14,7 @@ export default function CheckIn() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [ocrFile, setOcrFile] = useState(null)
   const [ocrResult, setOcrResult] = useState(null)
+  const [ocrLoading, setOcrLoading] = useState(false)
   const [weightAlert, setWeightAlert] = useState(null)
 
   const filtered = query
@@ -67,16 +69,41 @@ export default function CheckIn() {
     setTimeout(() => setShowSuccess(false), 3000)
   }
 
-  function handleOCR(e) {
+  async function handleOCR(e) {
     const file = e.target.files[0]
     if (!file) return
     setOcrFile(file.name)
-    // 模擬 OCR 辨識 + 影像壓縮
-    setTimeout(() => {
-      const result = { systolic: 138, diastolic: 86, pulse: 74 }
-      setOcrResult(result)
-      setVitals(p => ({ ...p, systolic: result.systolic, diastolic: result.diastolic, pulse: result.pulse }))
-    }, 1200)
+    setOcrResult(null)
+    setOcrLoading(true)
+
+    if (hasGemini) {
+      const reader = new FileReader()
+      reader.onload = async (ev) => {
+        const base64 = ev.target.result.split(',')[1]
+        const result = await askGeminiOCR(base64, file.type)
+        setOcrLoading(false)
+        if (result && (result.systolic || result.diastolic)) {
+          setOcrResult(result)
+          setVitals(p => ({
+            ...p,
+            systolic:  result.systolic  ?? p.systolic,
+            diastolic: result.diastolic ?? p.diastolic,
+            pulse:     result.pulse     ?? p.pulse,
+          }))
+        } else {
+          setOcrResult({ error: true })
+        }
+      }
+      reader.readAsDataURL(file)
+    } else {
+      // 展示模式：模擬辨識
+      setTimeout(() => {
+        const result = { systolic: 138, diastolic: 86, pulse: 74 }
+        setOcrResult(result)
+        setVitals(p => ({ ...p, systolic: result.systolic, diastolic: result.diastolic, pulse: result.pulse }))
+        setOcrLoading(false)
+      }, 1200)
+    }
   }
 
   const bpStatus = vitals.systolic && selected
@@ -183,13 +210,26 @@ export default function CheckIn() {
               <p className="text-xs text-gray-400 mt-1">系統自動擷取收縮壓、舒張壓、脈搏 · 影像自動壓縮節省空間</p>
               <input type="file" accept="image/*" className="hidden" onChange={handleOCR} />
             </label>
-            {ocrResult && (
+            {ocrLoading && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm flex items-center gap-2">
+                <Loader2 className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
+                <span className="text-blue-600">{hasGemini ? 'Gemini 辨識中…' : '辨識中…'}</span>
+              </div>
+            )}
+            {ocrResult && !ocrResult.error && (
               <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg text-sm">
-                <p className="font-medium text-green-700 mb-1">✓ OCR 辨識完成（模擬）· 已自動壓縮圖片</p>
+                <p className="font-medium text-green-700 mb-1">
+                  ✓ OCR 辨識完成{hasGemini ? '（Gemini）' : '（模擬）'}
+                </p>
                 <p className="text-green-600">
-                  收縮壓 {ocrResult.systolic} / 舒張壓 {ocrResult.diastolic} mmHg · 脈搏 {ocrResult.pulse} bpm
+                  收縮壓 {ocrResult.systolic ?? '—'} / 舒張壓 {ocrResult.diastolic ?? '—'} mmHg · 脈搏 {ocrResult.pulse ?? '—'} bpm
                 </p>
                 <p className="text-xs text-green-500 mt-1">數值已自動填入，如有誤差可手動修正</p>
+              </div>
+            )}
+            {ocrResult?.error && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+                <p className="text-amber-700">無法辨識圖片中的數值，請確認圖片清晰度或手動輸入</p>
               </div>
             )}
             {!selected && (
