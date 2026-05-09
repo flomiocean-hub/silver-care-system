@@ -1,3 +1,32 @@
-// Phase 1: single-org constant. Phase 2: read from authenticated user profile.
-export const ORG_ID = 1
-export const ORG_NAME = '財團法人台北市台北中華基督教會'
+const ORG_KEY = 'sc_org'
+
+// Dynamic: reads current selected org from localStorage
+export function getOrgId() {
+  try {
+    const org = JSON.parse(localStorage.getItem(ORG_KEY))
+    return org?.id ?? 1
+  } catch {
+    return 1
+  }
+}
+
+export function getOrgName() {
+  try {
+    const org = JSON.parse(localStorage.getItem(ORG_KEY))
+    return org?.name ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export function saveOrg(org) {
+  localStorage.setItem(ORG_KEY, JSON.stringify(org))
+}
+
+export function clearOrg() {
+  localStorage.removeItem(ORG_KEY)
+}
+
+export function loadOrg() {
+  try { return JSON.parse(localStorage.getItem(ORG_KEY)) } catch { return null }
+}

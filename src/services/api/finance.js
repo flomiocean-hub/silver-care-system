@@ -1,38 +1,36 @@
 import { supabase } from '../supabaseClient'
-import { ORG_ID } from '../../config/org'
+import { getOrgId } from '../../config/org'
 
-// 手動建立的記錄（午餐費 + 材料費）
 export async function getLunchRecords() {
   const { data } = await supabase
     .from('finance_records')
     .select('*')
-    .eq('org_id', ORG_ID)
+    .eq('org_id', getOrgId())
     .in('type', ['lunch', 'material'])
     .order('created_at')
   return data ?? []
 }
 
 export async function addLunchRecord(record) {
-  const { error } = await supabase.from('finance_records').insert({ ...record, org_id: ORG_ID })
+  const { error } = await supabase.from('finance_records').insert({ ...record, org_id: getOrgId() })
   if (error) throw error
 }
 
 export async function updateFinanceRecord(id, updates) {
-  const { error } = await supabase.from('finance_records').update(updates).eq('id', id).eq('org_id', ORG_ID)
+  const { error } = await supabase.from('finance_records').update(updates).eq('id', id).eq('org_id', getOrgId())
   if (error) throw error
 }
 
 export async function deleteLunchRecord(id) {
-  const { error } = await supabase.from('finance_records').delete().eq('id', id).eq('org_id', ORG_ID)
+  const { error } = await supabase.from('finance_records').delete().eq('id', id).eq('org_id', getOrgId())
   if (error) throw error
 }
 
-// 課程費 + 每人材料費：從 enrollments + courses 合併
 export async function getCourseFinanceRecords() {
   const { data } = await supabase
     .from('enrollments')
     .select('*, courses(name, session, materials_fee)')
-    .eq('org_id', ORG_ID)
+    .eq('org_id', getOrgId())
     .eq('is_waitlist', false)
     .order('enrolled_at')
 
@@ -70,24 +68,17 @@ export async function getCourseFinanceRecords() {
   return records
 }
 
-// 相容舊版呼叫：合併課程費 + 午餐費
 export async function getFinanceRecords() {
   const [lunch, course] = await Promise.all([getLunchRecords(), getCourseFinanceRecords()])
   return [...course, ...lunch]
 }
 
 export async function updateEnrollmentPaid(enrollmentId, amountPaid) {
-  const { error } = await supabase
-    .from('enrollments')
-    .update({ total_paid: amountPaid })
-    .eq('id', enrollmentId)
+  const { error } = await supabase.from('enrollments').update({ total_paid: amountPaid }).eq('id', enrollmentId)
   if (error) throw error
 }
 
 export async function updateEnrollmentMaterialPaid(enrollmentId, materialPaid) {
-  const { error } = await supabase
-    .from('enrollments')
-    .update({ material_paid: materialPaid })
-    .eq('id', enrollmentId)
+  const { error } = await supabase.from('enrollments').update({ material_paid: materialPaid }).eq('id', enrollmentId)
   if (error) throw error
 }

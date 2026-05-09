@@ -1,6 +1,6 @@
 import { Heart, LogOut, Bell } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
-import { ORG_NAME } from '../../config/org'
+import { getOrgName } from '../../config/org'
 
 export default function Navbar() {
   const { user, logout, isAdmin } = useAuth()
@@ -17,7 +17,7 @@ export default function Navbar() {
             關懷據點管理
           </span>
           <span className="text-green-200 hidden sm:block" style={{ fontSize: '10px' }}>
-            {ORG_NAME}
+            {getOrgName()}
           </span>
         </div>
       </div>

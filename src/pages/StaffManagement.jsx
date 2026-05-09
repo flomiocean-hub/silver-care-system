@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { ShieldCheck, UserPlus, Trash2, Lock, User } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ShieldCheck, UserPlus, Trash2, Lock, User, Building2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useAudit } from '../contexts/AuditContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
+import { getActiveOrganizations } from '../services/api/organizations'
 
 const ROLE_STYLE = {
   '超級管理者': 'bg-purple-100 text-purple-700',
@@ -11,13 +12,18 @@ const ROLE_STYLE = {
 }
 
 export default function StaffManagement() {
-  const { user, users, isAdmin, isSuperAdmin, addStaff, removeStaff } = useAuth()
+  const { user, users, currentOrg, isAdmin, isSuperAdmin, addStaff, removeStaff } = useAuth()
   const visibleUsers = users.filter(u => isSuperAdmin || u.role !== '超級管理者')
   const { addLog } = useAudit()
+  const [orgs, setOrgs]                   = useState([])
   const [showForm, setShowForm]           = useState(false)
   const [deleteTarget, setDeleteTarget]   = useState(null)
-  const [form, setForm]                   = useState({ username: '', password: '', name: '' })
+  const [form, setForm]                   = useState({ username: '', password: '', name: '', org_id: currentOrg?.id ?? 1 })
   const [formError, setFormError]         = useState('')
+
+  useEffect(() => {
+    getActiveOrganizations().then(setOrgs)
+  }, [])
 
   if (!isAdmin) {
     return (
@@ -35,9 +41,10 @@ export default function StaffManagement() {
       setFormError('此帳號已存在，請換一個帳號名稱')
       return
     }
-    addStaff({ username: form.username.trim(), password: form.password, name: form.name.trim() })
-    addLog({ action: '新增', module: '帳號管理', target: form.name.trim(), detail: `新增關懷站專員帳號 ${form.username.trim()}` })
-    setForm({ username: '', password: '', name: '' })
+    const orgName = orgs.find(o => o.id === Number(form.org_id))?.name ?? ''
+    addStaff({ username: form.username.trim(), password: form.password, name: form.name.trim(), org_id: Number(form.org_id) })
+    addLog({ action: '新增', module: '帳號管理', target: form.name.trim(), detail: `新增關懷站專員帳號 ${form.username.trim()}，所屬單位：${orgName}` })
+    setForm({ username: '', password: '', name: '', org_id: currentOrg?.id ?? 1 })
     setFormError('')
     setShowForm(false)
   }
@@ -76,13 +83,23 @@ export default function StaffManagement() {
       {showForm && (
         <form onSubmit={handleAdd} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
           <h3 className="font-semibold text-gray-700">新增關懷站專員帳號</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-xs text-gray-500 block mb-1">姓名 *</label>
               <input required value={form.name}
                 onChange={e => { setForm(p => ({ ...p, name: e.target.value })); setFormError('') }}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 placeholder="例：王小明" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">所屬單位 *</label>
+              <select required value={form.org_id}
+                onChange={e => setForm(p => ({ ...p, org_id: Number(e.target.value) }))}
+                disabled={!isSuperAdmin}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-gray-50 disabled:text-gray-500">
+                {orgs.map(o => <option key={o.id} value={o.id}>{o.short_name || o.name}</option>)}
+              </select>
+              {!isSuperAdmin && <p className="text-xs text-gray-400 mt-0.5">自動設為目前登入單位</p>}
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">帳號 *</label>
@@ -116,6 +133,7 @@ export default function StaffManagement() {
             <tr className="text-xs text-gray-500 border-b border-gray-100 bg-gray-50">
               <th className="text-left py-3 px-4">姓名</th>
               <th className="text-left py-3 px-4">帳號</th>
+              <th className="text-left py-3 px-4 hidden md:table-cell">所屬單位</th>
               <th className="text-left py-3 px-4">角色</th>
               <th className="text-left py-3 px-4">狀態</th>
               <th className="text-right py-3 px-4">操作</th>
@@ -137,6 +155,15 @@ export default function StaffManagement() {
                     </div>
                   </td>
                   <td className="py-3 px-4 font-mono text-xs text-gray-500">{u.username}</td>
+                  <td className="py-3 px-4 hidden md:table-cell">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                      {u.org_id
+                        ? (orgs.find(o => o.id === u.org_id)?.short_name ?? `單位 ${u.org_id}`)
+                        : <span className="text-purple-500">全平台</span>
+                      }
+                    </div>
+                  </td>
                   <td className="py-3 px-4">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_STYLE[u.role] ?? 'bg-gray-100 text-gray-600'}`}>
                       {u.role}
