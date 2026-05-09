@@ -60,6 +60,7 @@ export default function Courses() {
     setSaving(true)
     const newCourse = {
       ...form,
+      id: `C${Date.now()}`,
       enrolled: 0, waitlist: 0, materials_spent: 0, status: 'active',
       capacity: Number(form.capacity), total_fee: Number(form.total_fee),
       total_sessions: Number(form.total_sessions), materials_fee: Number(form.materials_fee),
