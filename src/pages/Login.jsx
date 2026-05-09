@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Heart, AlertCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { ORG_NAME } from '../config/org'
 
 export default function Login() {
   const { login } = useAuth()
@@ -30,7 +31,8 @@ export default function Login() {
           </div>
           <h1 className="text-2xl font-bold text-gray-800 leading-tight">銀髮關懷據點</h1>
           <h2 className="text-lg font-semibold text-primary leading-tight">智慧管理系統</h2>
-          <p className="text-sm text-gray-400 mt-2">請登入以繼續使用</p>
+          <p className="text-xs text-gray-500 mt-2 px-2 leading-relaxed">{ORG_NAME}</p>
+          <p className="text-xs text-gray-400 mt-1">請登入以繼續使用</p>
         </div>
 
         {/* Form card */}

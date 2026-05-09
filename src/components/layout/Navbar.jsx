@@ -1,5 +1,6 @@
 import { Heart, LogOut, Bell } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { ORG_NAME } from '../../config/org'
 
 export default function Navbar() {
   const { user, logout, isAdmin } = useAuth()
@@ -8,12 +9,17 @@ export default function Navbar() {
     <header className="bg-primary text-white shadow-md px-4 py-3 flex items-center justify-between shrink-0 z-30 relative">
       <div className="flex items-center gap-2.5">
         <Heart className="w-5 h-5 text-green-200 shrink-0" />
-        <span className="font-display font-semibold tracking-wide hidden sm:block text-base">
-          銀髮關懷據點智慧管理系統
-        </span>
-        <span className="font-display font-semibold tracking-wide sm:hidden text-sm">
-          關懷據點管理
-        </span>
+        <div className="flex flex-col">
+          <span className="font-display font-semibold tracking-wide hidden sm:block text-base leading-tight">
+            銀髮關懷據點智慧管理系統
+          </span>
+          <span className="font-display font-semibold tracking-wide sm:hidden text-sm leading-tight">
+            關懷據點管理
+          </span>
+          <span className="text-green-200 hidden sm:block" style={{ fontSize: '10px' }}>
+            {ORG_NAME}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
