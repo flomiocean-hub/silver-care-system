@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, UserPlus, Trash2, Edit3, Phone, MapPin, User, Loader2 } from 'lucide-react'
+import { Search, UserPlus, Trash2, Edit3, Phone, MapPin, User, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react'
 import { getRiskLevel } from '../utils/riskScoring'
 import { toRocDate, rocToIso } from '../utils/dateUtils'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
@@ -18,12 +18,13 @@ const TAG_COLORS = {
 const MEMBER_TYPES   = ['出席型', '探訪型']
 const AVAILABLE_TAGS = ['獨居', '高風險', '電訪追蹤', '探訪']
 const FILTER_OPTIONS = [
-  { key: 'all',    label: '全部' },
-  { key: 'alone',  label: '獨居' },
-  { key: 'high',   label: '高風險' },
-  { key: 'absent', label: '久未出席' },
-  { key: 'visit',  label: '探訪型' },
-  { key: 'phone',  label: '電訪追蹤' },
+  { key: 'all',           label: '全部' },
+  { key: 'alone',         label: '獨居' },
+  { key: 'high',          label: '高風險' },
+  { key: 'absent',        label: '久未出席' },
+  { key: 'visit',         label: '探訪型' },
+  { key: 'phone',         label: '電訪追蹤' },
+  { key: 'no_consent',    label: '未簽同意書' },
 ]
 
 function generateId(members) {
@@ -37,6 +38,7 @@ function generateId(members) {
 const emptyForm = {
   name: '', birthday: '', gender: '女', mobile: '', home_phone: '', address: '',
   emergency_contact: '', member_type: '出席型', tags: [], notes: '',
+  consent_signed: false, consent_signed_at: null,
 }
 
 export default function Members() {
@@ -62,14 +64,17 @@ export default function Members() {
   const filtered = members.filter(m => {
     const q = !query || m.name.includes(query)
     const f =
-      filter === 'all'    ? true :
-      filter === 'alone'  ? m.tags?.includes('獨居') :
-      filter === 'high'   ? m.risk_score >= 70 :
-      filter === 'absent' ? new Date(m.last_seen) < new Date(Date.now() - 14 * 86400000) :
-      filter === 'visit'  ? m.member_type === '探訪型' :
-      filter === 'phone'  ? m.tags?.includes('電訪追蹤') : true
+      filter === 'all'        ? true :
+      filter === 'alone'      ? m.tags?.includes('獨居') :
+      filter === 'high'       ? m.risk_score >= 70 :
+      filter === 'absent'     ? new Date(m.last_seen) < new Date(Date.now() - 14 * 86400000) :
+      filter === 'visit'      ? m.member_type === '探訪型' :
+      filter === 'phone'      ? m.tags?.includes('電訪追蹤') :
+      filter === 'no_consent' ? !m.consent_signed : true
     return q && f
   })
+
+  const noConsentCount = members.filter(m => !m.consent_signed).length
 
   function toggleTag(tag) {
     setForm(p => ({ ...p, tags: p.tags.includes(tag) ? p.tags.filter(t => t !== tag) : [...p.tags, tag] }))
@@ -132,7 +137,12 @@ export default function Members() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-800">長者管理</h1>
-          <p className="text-sm text-gray-400 mt-1">共 {members.length} 位會員</p>
+          <p className="text-sm text-gray-400 mt-1">
+            共 {members.length} 位會員
+            {noConsentCount > 0 && (
+              <span className="ml-2 text-amber-600 font-medium">· {noConsentCount} 位尚未簽同意書</span>
+            )}
+          </p>
         </div>
         <button onClick={() => { setForm(emptyForm); setShowForm('add') }}
           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-light transition-colors text-sm font-medium shadow-sm">
@@ -210,6 +220,27 @@ export default function Members() {
                   </button>
                 ))}
               </div>
+            </div>
+            <div className="col-span-2 flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <div>
+                <p className="text-sm font-medium text-gray-700">個資使用同意書</p>
+                <p className="text-xs text-gray-400 mt-0.5">長者已簽署書面同意書，同意健康資料用於照護管理</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm(p => ({
+                  ...p,
+                  consent_signed: !p.consent_signed,
+                  consent_signed_at: !p.consent_signed ? new Date().toISOString() : null,
+                }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.consent_signed ? 'bg-green-500' : 'bg-gray-300'
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                  form.consent_signed ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
             </div>
           </div>
           <div className="flex gap-3">
@@ -297,12 +328,21 @@ export default function Members() {
                   <p>最後出席：{m.last_seen}</p>
                   {m.notes && <p className="text-gray-400 italic">{m.notes}</p>}
                 </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <div className="flex-1 bg-gray-200 rounded-full h-1.5 mr-2">
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <div className="flex-1 bg-gray-200 rounded-full h-1.5 mr-1">
                     <div className={`h-1.5 rounded-full ${m.risk_score >= 70 ? 'bg-red-500' : m.risk_score >= 40 ? 'bg-yellow-400' : 'bg-green-500'}`}
                       style={{ width: `${m.risk_score}%` }} />
                   </div>
-                  <span className="text-xs text-gray-500 w-14 text-right shrink-0">風險 {m.risk_score}</span>
+                  <span className="text-xs text-gray-500 w-12 text-right shrink-0">風險 {m.risk_score}</span>
+                  {m.consent_signed ? (
+                    <span className="flex items-center gap-1 text-xs text-green-600 shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5" /> 已簽
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-xs text-amber-500 shrink-0">
+                      <ShieldAlert className="w-3.5 h-3.5" /> 未簽
+                    </span>
+                  )}
                 </div>
               </div>
             )
