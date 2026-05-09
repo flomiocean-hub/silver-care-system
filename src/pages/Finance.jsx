@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { DollarSign, Download, Mail, AlertCircle } from 'lucide-react'
-import { mockFinance } from '../services/mockData'
+import { useState, useEffect, useCallback } from 'react'
+import { DollarSign, Download, Mail, AlertCircle, Loader2 } from 'lucide-react'
 import { useAudit } from '../contexts/AuditContext'
+import { getFinanceRecords } from '../services/api/finance'
 
 function getStatus(r) {
   if (r.amount_paid >= r.amount_due) return { label: '已繳', icon: '✅', cls: 'bg-green-50 text-green-700' }
@@ -15,11 +15,19 @@ function getStatus(r) {
 
 export default function Finance() {
   const { addLog } = useAudit()
-  const [records] = useState(mockFinance)
+  const [records, setRecords] = useState([])
+  const [loading, setLoading] = useState(true)
   const [view, setView] = useState('all')
   const [emailSent, setEmailSent] = useState(false)
 
-  // 動態產生所有篩選選項
+  const load = useCallback(async () => {
+    setLoading(true)
+    setRecords(await getFinanceRecords())
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
   const filterOptions = [
     { key: 'all', label: '全部' },
     { key: 'lunch', label: '🍱 午餐費' },
@@ -66,12 +74,20 @@ export default function Finance() {
     setTimeout(() => setEmailSent(false), 4000)
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-800">財務追蹤</h1>
-          <p className="text-sm text-gray-400 mt-1">2025年05月 · 每月1日為費用基準日</p>
+          <p className="text-sm text-gray-400 mt-1">每月1日為費用基準日</p>
         </div>
         <div className="flex gap-2">
           <button onClick={handleEmailAlert}

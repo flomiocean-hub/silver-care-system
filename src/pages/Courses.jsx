@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Users, Calculator, Download, Plus, Wallet, Clock, Link, Check } from 'lucide-react'
-import { mockCourses, mockEnrollments, mockMembers } from '../services/mockData'
+import { BookOpen, Users, Calculator, Download, Plus, Wallet, Clock, Link, Check, Loader2 } from 'lucide-react'
 import { calcProRatedFee } from '../utils/billing'
 import { useAudit } from '../contexts/AuditContext'
+import { getCourses, addCourse, getEnrollments, addEnrollment, updateCourseCount } from '../services/api/courses'
 
 const emptyForm = {
   name: '', session: 'A', instructor: '', description: '', expected_outcome: '',
@@ -14,24 +14,36 @@ const emptyForm = {
 export default function Courses() {
   const navigate = useNavigate()
   const { addLog } = useAudit()
-  const [courses, setCourses] = useState(mockCourses)
-  const [enrollments, setEnrollments] = useState(mockEnrollments)
-  const [copiedId, setCopiedId] = useState(null)
+  const [courses, setCourses]       = useState([])
+  const [enrollments, setEnrollments] = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState(false)
+  const [copiedId, setCopiedId]     = useState(null)
+  const [calcInput, setCalcInput]   = useState({ totalFee: 200, totalSessions: 4, remaining: 2 })
+  const [showForm, setShowForm]     = useState(false)
+  const [form, setForm]             = useState(emptyForm)
+  const [enrollModal, setEnrollModal] = useState(null)
+  const [enrollName, setEnrollName] = useState('')
+  const [enrollPaid, setEnrollPaid] = useState('')
+  const [adminOverride, setAdminOverride] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const [c, e] = await Promise.all([getCourses(), getEnrollments()])
+    setCourses(c)
+    setEnrollments(e)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
 
   function copyLink(courseId) {
-    const url = `${window.location.origin}/silver-care-system/register/${courseId}`
+    const url = `${window.location.origin}${import.meta.env.BASE_URL}register/${courseId}`
     navigator.clipboard.writeText(url).then(() => {
       setCopiedId(courseId)
       setTimeout(() => setCopiedId(null), 2000)
     })
   }
-  const [calcInput, setCalcInput] = useState({ totalFee: 200, totalSessions: 4, remaining: 2 })
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState(emptyForm)
-  const [enrollModal, setEnrollModal] = useState(null)
-  const [enrollName, setEnrollName] = useState('')
-  const [enrollPaid, setEnrollPaid] = useState('')
-  const [adminOverride, setAdminOverride] = useState(false)
 
   const fee = calcProRatedFee(calcInput.totalFee, calcInput.totalSessions, calcInput.remaining)
 
@@ -43,51 +55,47 @@ export default function Courses() {
       .sort((a, b) => a.waitlist_no - b.waitlist_no)
   }
 
-  function handleCreateCourse(e) {
+  async function handleCreateCourse(e) {
     e.preventDefault()
+    setSaving(true)
     const newCourse = {
-      ...form, id: `C${String(courses.length + 1).padStart(3, '0')}`,
+      ...form,
       enrolled: 0, waitlist: 0, materials_spent: 0, status: 'active',
       capacity: Number(form.capacity), total_fee: Number(form.total_fee),
       total_sessions: Number(form.total_sessions), materials_fee: Number(form.materials_fee),
     }
-    setCourses(p => [...p, newCourse])
+    const created = await addCourse(newCourse)
     addLog({ action: '新增', module: '課程管理', target: newCourse.name, detail: `開設新課程（${newCourse.day} ${newCourse.time}・${newCourse.instructor}）` })
     setForm(emptyForm)
     setShowForm(false)
+    await load()
+    setSaving(false)
   }
 
-  function handleEnroll() {
+  async function handleEnroll() {
     if (!enrollName.trim() || !enrollModal) return
     const course = courses.find(c => c.id === enrollModal)
     const existing = enrollments.find(e => e.course_id === enrollModal && e.member_name === enrollName.trim())
     if (existing) return
 
     const isFull = course.enrolled >= course.capacity
-    const now = new Date()
-    const courseStart = new Date(course.start_date)
-    const isPastStart = now > courseStart
-
-    // 開課後只能管理者手動新增（用 adminOverride 模擬）
+    const isPastStart = course.start_date && new Date() > new Date(course.start_date)
     if (isPastStart && !adminOverride) return
 
     const waitlistCount = getWaitlist(enrollModal).length
     const newEntry = {
-      id: `E${Date.now()}`,
-      member_id: '',
+      member_id: null,
       member_name: enrollName.trim(),
       course_id: enrollModal,
       sessions_remaining: course.total_sessions,
       total_paid: Number(enrollPaid) || 0,
       total_fee: course.total_fee,
       is_waitlist: isFull,
-      waitlist_no: isFull ? waitlistCount + 1 : undefined,
+      waitlist_no: isFull ? waitlistCount + 1 : null,
     }
-    setEnrollments(p => [...p, newEntry])
-    setCourses(p => p.map(c => c.id === enrollModal
-      ? isFull ? { ...c, waitlist: c.waitlist + 1 } : { ...c, enrolled: c.enrolled + 1 }
-      : c
-    ))
+    setSaving(true)
+    await addEnrollment(newEntry)
+    await updateCourseCount(enrollModal, isFull ? 'waitlist' : 'enrolled', 1)
     addLog({
       action: '新增',
       module: '課程管理',
@@ -98,6 +106,8 @@ export default function Courses() {
     setEnrollName('')
     setEnrollPaid('')
     setAdminOverride(false)
+    await load()
+    setSaving(false)
   }
 
   function exportCSV() {
@@ -116,6 +126,14 @@ export default function Courses() {
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob); a.download = '課程報名名單.csv'; a.click()
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    )
   }
 
   return (
@@ -138,7 +156,7 @@ export default function Courses() {
             </div>
             {(() => {
               const course = courses.find(c => c.id === enrollModal)
-              const isPastStart = course && new Date() > new Date(course.start_date)
+              const isPastStart = course?.start_date && new Date() > new Date(course.start_date)
               return isPastStart ? (
                 <div className="flex items-center gap-2">
                   <input type="checkbox" id="override" checked={adminOverride} onChange={e => setAdminOverride(e.target.checked)} />
@@ -147,8 +165,10 @@ export default function Courses() {
               ) : null
             })()}
             <div className="flex gap-2">
-              <button onClick={handleEnroll}
-                className="flex-1 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light transition-colors">確認報名</button>
+              <button onClick={handleEnroll} disabled={saving}
+                className="flex-1 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light transition-colors disabled:opacity-60 flex items-center justify-center gap-1">
+                {saving && <Loader2 className="w-3 h-3 animate-spin" />} 確認報名
+              </button>
               <button onClick={() => { setEnrollModal(null); setEnrollName(''); setEnrollPaid('') }}
                 className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">取消</button>
             </div>
@@ -208,13 +228,15 @@ export default function Courses() {
             </div>
           </div>
           <div className="flex gap-3">
-            <button type="submit" className="px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light">建立課程</button>
+            <button type="submit" disabled={saving}
+              className="px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light disabled:opacity-60 flex items-center gap-2">
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />} 建立課程
+            </button>
             <button type="button" onClick={() => setShowForm(false)} className="px-5 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">取消</button>
           </div>
         </form>
       )}
 
-      {/* 計費計算機 */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
           <Calculator className="w-4 h-4" /> 動態按比例計費計算機
@@ -239,7 +261,6 @@ export default function Courses() {
         </div>
       </div>
 
-      {/* 課程列表 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {courses.map(c => {
           const enrolled = getEnrolled(c.id)
@@ -275,7 +296,6 @@ export default function Courses() {
                 </div>
               </div>
 
-              {/* 材料費子帳 */}
               {c.materials_fee > 0 && (
                 <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs">
                   <div className="flex items-center gap-1 font-medium text-amber-700 mb-1">
@@ -299,8 +319,7 @@ export default function Courses() {
                   }`}>
                   {isFull ? `後補報名（${waitlist.length} 人）` : '現場報名'}
                 </button>
-                <button
-                  onClick={() => copyLink(c.id)}
+                <button onClick={() => copyLink(c.id)}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border transition-colors bg-white border-gray-300 text-gray-600 hover:border-primary hover:text-primary"
                   title="複製報名連結">
                   {copiedId === c.id
@@ -308,15 +327,13 @@ export default function Courses() {
                     : <><Link className="w-4 h-4" /><span className="text-xs">分享連結</span></>
                   }
                 </button>
-                <button
-                  onClick={() => navigate(`/register/${c.id}`)}
+                <button onClick={() => navigate(`/register/${c.id}`)}
                   className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-300 bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
                   title="預覽報名頁">
                   <span className="text-xs">預覽</span>
                 </button>
               </div>
 
-              {/* 正取學員 */}
               {enrolled.length > 0 && (
                 <div className="pt-3 border-t border-gray-100">
                   <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
@@ -340,7 +357,6 @@ export default function Courses() {
                 </div>
               )}
 
-              {/* 後補名單 */}
               {waitlist.length > 0 && (
                 <div className="pt-2 border-t border-gray-100 mt-2">
                   <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">

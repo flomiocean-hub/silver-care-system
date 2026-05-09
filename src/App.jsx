@@ -21,7 +21,7 @@ function AppShell() {
 
   return (
     <AuditProvider>
-      <BrowserRouter basename="/silver-care-system">
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Routes>
           {/* 報名頁：獨立全螢幕，無 Navbar/Sidebar */}
           <Route path="/register/:courseId" element={<CourseRegister />} />

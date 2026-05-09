@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Brain, AlertCircle, Activity, MessageSquare, Send, Sparkles, Camera, Loader2 } from 'lucide-react'
-import { mockMembers, mockHealthData, mockFinance, HEALTH_NORMS } from '../services/mockData'
+import { HEALTH_NORMS } from '../services/mockData'
 import HealthTrendChart from '../components/dashboard/HealthTrendChart'
 import { getRiskLevel, getBPStatus, checkWeightAlert } from '../utils/riskScoring'
 import { askGeminiNLP, getPollinationsAvatarUrl, hasGemini } from '../services/geminiService'
+import { getMembers } from '../services/api/members'
+import { getHealthRecords } from '../services/api/health'
+import { getFinanceRecords } from '../services/api/finance'
 
-// ── 後備關鍵字回覆（無 Gemini 時使用）─────────────────────────
 const AI_FALLBACK = {
   '誰兩週沒來': '依出席記錄分析，連續兩週以上未出席的長者：\n• **張桂英**（SC-005）— 最後出席 2025-04-10，已缺席 23 天，獨居高風險，建議立即電訪\n• **陳美華**（SC-001）— 最後出席 2025-04-18，已缺席 15 天，已列入孤獨死預警名單',
   '午餐費': '本月午餐費尚未繳費的長者：\n• **吳秀蘭**（SC-007）— 欠費 30 元\n共 1 位，總欠費 30 元。',
@@ -38,32 +40,48 @@ function renderAIText(text) {
 }
 
 export default function AIInsights() {
-  const [messages, setMessages] = useState([{ role: 'ai', text: AI_FALLBACK.default }])
-  const [input, setInput]       = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
-  const [selectedMember, setSelectedMember] = useState(mockMembers[0])
-  const [avatarFile, setAvatarFile]   = useState(null)
+  const [members, setMembers]       = useState([])
+  const [healthData, setHealthData] = useState([])
+  const [finance, setFinance]       = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [messages, setMessages]     = useState([{ role: 'ai', text: AI_FALLBACK.default }])
+  const [input, setInput]           = useState('')
+  const [aiLoading, setAiLoading]   = useState(false)
+  const [selectedMemberId, setSelectedMemberId] = useState(null)
+  const [avatarFile, setAvatarFile] = useState(null)
   const [avatarStyle, setAvatarStyle] = useState(AVATAR_STYLES[0])
   const [avatarResult, setAvatarResult] = useState(null)
-  const [generating, setGenerating]   = useState(false)
+  const [generating, setGenerating] = useState(false)
   const chatEndRef = useRef(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const [m, h, f] = await Promise.all([getMembers(), getHealthRecords(), getFinanceRecords()])
+    setMembers(m)
+    setHealthData(h)
+    setFinance(f)
+    if (m.length > 0) setSelectedMemberId(m[0].id)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, aiLoading])
 
-  // ── 預警資料 ──
-  const aloneHighRisk = mockMembers.filter(m => m.tags?.includes('獨居') && m.risk_score >= 60)
-  const bpAbnormal = mockMembers.filter(m => {
-    const health = mockHealthData.filter(h => h.member_id === m.id)
+  const selectedMember = members.find(m => m.id === selectedMemberId) ?? members[0]
+
+  const aloneHighRisk = members.filter(m => m.tags?.includes('獨居') && m.risk_score >= 60)
+  const bpAbnormal = members.filter(m => {
+    const health = healthData.filter(h => h.member_id === m.id)
     if (!health.length) return false
     const latest = health[health.length - 1]
     const norm = HEALTH_NORMS[m.gender === '男' ? 'male' : 'female']
     return latest.systolic >= norm.bp_high.systolic || latest.diastolic >= norm.bp_high.diastolic
   })
-  const weightAlerts = mockMembers.filter(m => checkWeightAlert(m, mockHealthData)?.alert)
+  const weightAlerts = members.filter(m => checkWeightAlert(m, healthData)?.alert)
 
-  // ── 發送訊息 ──────────────────────────────────────────────
   async function sendQuery(text) {
     if (!text.trim() || aiLoading) return
     setInput('')
@@ -72,11 +90,7 @@ export default function AIInsights() {
 
     let reply = null
     if (hasGemini) {
-      reply = await askGeminiNLP(text, {
-        members: mockMembers,
-        healthData: mockHealthData,
-        finance: mockFinance,
-      })
+      reply = await askGeminiNLP(text, { members, healthData, finance })
     }
     if (!reply) reply = getFallbackResponse(text)
 
@@ -84,7 +98,6 @@ export default function AIInsights() {
     setAiLoading(false)
   }
 
-  // ── Q版頭像（Pollinations.ai，不需要 API Key）─────────────
   function handleGenAvatar() {
     if (!avatarFile) return
     setGenerating(true)
@@ -102,6 +115,14 @@ export default function AIInsights() {
     img.src = url
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div className="flex items-start justify-between">
@@ -111,7 +132,6 @@ export default function AIInsights() {
           </h1>
           <p className="text-sm text-gray-400 mt-1">依台灣中高齡（60歲以上）健康基準，性別差異化判定</p>
         </div>
-        {/* Gemini 狀態指示 */}
         <div className={`text-xs px-3 py-1.5 rounded-full font-medium shrink-0 ${
           hasGemini ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
         }`}>
@@ -119,7 +139,6 @@ export default function AIInsights() {
         </div>
       </div>
 
-      {/* ── 預警面板 ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-red-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-red-700 mb-3 flex items-center gap-2">
@@ -150,7 +169,7 @@ export default function AIInsights() {
           <div className="space-y-2">
             {bpAbnormal.length === 0 ? <p className="text-xs text-gray-400">目前無異常</p> :
               bpAbnormal.map(m => {
-                const h = mockHealthData.filter(d => d.member_id === m.id).slice(-1)[0]
+                const h = healthData.filter(d => d.member_id === m.id).slice(-1)[0]
                 const bp = h ? getBPStatus(h.systolic, h.diastolic, m.gender) : null
                 return (
                   <div key={m.id} className="p-3 bg-amber-50 rounded-lg border border-amber-100">
@@ -176,7 +195,7 @@ export default function AIInsights() {
           <div className="space-y-2">
             {weightAlerts.length === 0 ? <p className="text-xs text-gray-400">目前無體重異常</p> :
               weightAlerts.map(m => {
-                const alert = checkWeightAlert(m, mockHealthData)
+                const alert = checkWeightAlert(m, healthData)
                 return (
                   <div key={m.id} className="p-3 bg-purple-50 rounded-lg border border-purple-100">
                     <p className="font-semibold text-purple-700 text-sm">{m.name}</p>
@@ -190,7 +209,6 @@ export default function AIInsights() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* ── NLP 問答 ── */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col">
           <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
             <MessageSquare className="w-4 h-4" />
@@ -198,7 +216,6 @@ export default function AIInsights() {
             {hasGemini && <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-normal">Gemini</span>}
           </h3>
 
-          {/* 快速提問按鈕 */}
           <div className="flex flex-wrap gap-2 mb-3">
             {QUICK_QUERIES.map(q => (
               <button key={q} onClick={() => sendQuery(q)} disabled={aiLoading}
@@ -208,7 +225,6 @@ export default function AIInsights() {
             ))}
           </div>
 
-          {/* 對話框 */}
           <div className="flex-1 space-y-3 max-h-64 overflow-y-auto mb-3 bg-gray-50 rounded-xl p-3">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -233,7 +249,6 @@ export default function AIInsights() {
             <div ref={chatEndRef} />
           </div>
 
-          {/* 輸入列 */}
           <div className="flex gap-2">
             <input value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendQuery(input))}
@@ -247,21 +262,21 @@ export default function AIInsights() {
           </div>
         </div>
 
-        {/* ── 右側：血壓趨勢 + Q版頭像 ── */}
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <label className="text-xs text-gray-500 block mb-2">選擇長者查看血壓趨勢</label>
-            <select value={selectedMember.id}
-              onChange={e => setSelectedMember(mockMembers.find(m => m.id === e.target.value))}
+            <select value={selectedMemberId ?? ''}
+              onChange={e => setSelectedMemberId(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary mb-3">
-              {mockMembers.map(m => (
+              {members.map(m => (
                 <option key={m.id} value={m.id}>{m.name}（{m.gender}）</option>
               ))}
             </select>
           </div>
-          <HealthTrendChart data={mockHealthData} memberId={selectedMember.id} memberName={selectedMember.name} />
+          {selectedMember && (
+            <HealthTrendChart data={healthData} memberId={selectedMember.id} memberName={selectedMember.name} />
+          )}
 
-          {/* AI Q版頭像（Pollinations.ai） */}
           <div className="bg-white rounded-xl border border-purple-200 shadow-sm p-5">
             <h3 className="text-sm font-semibold text-purple-700 mb-1 flex items-center gap-2">
               <Sparkles className="w-4 h-4" /> AI 轉 Q 版小圖（會員專屬）
@@ -302,11 +317,8 @@ export default function AIInsights() {
             {avatarResult && (
               <div className="mt-3 p-4 bg-purple-50 border border-purple-200 rounded-xl text-center">
                 {avatarResult.imageUrl ? (
-                  <img
-                    src={avatarResult.imageUrl}
-                    alt="AI Q版頭像"
-                    className="w-24 h-24 rounded-2xl mx-auto mb-2 object-cover shadow-md"
-                  />
+                  <img src={avatarResult.imageUrl} alt="AI Q版頭像"
+                    className="w-24 h-24 rounded-2xl mx-auto mb-2 object-cover shadow-md" />
                 ) : (
                   <div className="text-5xl mb-2">{avatarResult.emoji}</div>
                 )}

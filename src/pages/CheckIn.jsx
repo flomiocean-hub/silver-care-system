@@ -1,24 +1,41 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Search, CheckCircle, Upload, Clock, AlertTriangle, Loader2 } from 'lucide-react'
-import { mockMembers, mockTodayCheckins, mockHealthData } from '../services/mockData'
 import { getBPStatus, checkWeightAlert } from '../utils/riskScoring'
 import { useAudit } from '../contexts/AuditContext'
 import { askGeminiOCR, hasGemini } from '../services/geminiService'
+import { getMembers } from '../services/api/members'
+import { getTodayCheckins, addCheckin } from '../services/api/checkins'
+import { getHealthRecords } from '../services/api/health'
 
 export default function CheckIn() {
   const { addLog } = useAudit()
-  const [query, setQuery] = useState('')
-  const [checkins, setCheckins] = useState(mockTodayCheckins)
-  const [selected, setSelected] = useState(null)
-  const [vitals, setVitals] = useState({ systolic: '', diastolic: '', pulse: '', weight: '' })
+  const [members, setMembers]     = useState([])
+  const [healthData, setHealthData] = useState([])
+  const [checkins, setCheckins]   = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
+  const [query, setQuery]         = useState('')
+  const [selected, setSelected]   = useState(null)
+  const [vitals, setVitals]       = useState({ systolic: '', diastolic: '', pulse: '', weight: '' })
   const [showSuccess, setShowSuccess] = useState(false)
-  const [ocrFile, setOcrFile] = useState(null)
+  const [ocrFile, setOcrFile]     = useState(null)
   const [ocrResult, setOcrResult] = useState(null)
   const [ocrLoading, setOcrLoading] = useState(false)
   const [weightAlert, setWeightAlert] = useState(null)
 
+  const load = useCallback(async () => {
+    setLoading(true)
+    const [m, c, h] = await Promise.all([getMembers(), getTodayCheckins(), getHealthRecords()])
+    setMembers(m)
+    setCheckins(c)
+    setHealthData(h)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
   const filtered = query
-    ? mockMembers.filter(m =>
+    ? members.filter(m =>
         (m.name.includes(query) || m.id.includes(query)) &&
         !checkins.find(c => c.member_id === m.id)
       )
@@ -34,24 +51,22 @@ export default function CheckIn() {
   function handleVitalChange(field, value) {
     setVitals(p => ({ ...p, [field]: value }))
     if (field === 'weight' && selected && value) {
-      const alert = checkWeightAlert(selected, mockHealthData)
+      const alert = checkWeightAlert(selected, healthData)
       setWeightAlert(alert)
     }
   }
 
-  function handleCheckin() {
-    if (!selected) return
-    const newEntry = {
-      id: `A${Date.now()}`,
+  async function handleCheckin() {
+    if (!selected || saving) return
+    setSaving(true)
+    await addCheckin({
       member_id: selected.id,
       name: selected.name,
-      time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }),
-      systolic: vitals.systolic || '-',
-      diastolic: vitals.diastolic || '-',
-      pulse: vitals.pulse || '-',
-      weight: vitals.weight || '-',
-    }
-    setCheckins(prev => [newEntry, ...prev])
+      systolic: vitals.systolic ? Number(vitals.systolic) : null,
+      diastolic: vitals.diastolic ? Number(vitals.diastolic) : null,
+      pulse: vitals.pulse ? Number(vitals.pulse) : null,
+      weight: vitals.weight ? Number(vitals.weight) : null,
+    })
     addLog({
       action: '簽到',
       module: '數位簽到',
@@ -66,6 +81,8 @@ export default function CheckIn() {
     setVitals({ systolic: '', diastolic: '', pulse: '', weight: '' })
     setOcrResult(null)
     setWeightAlert(null)
+    await load()
+    setSaving(false)
     setTimeout(() => setShowSuccess(false), 3000)
   }
 
@@ -96,7 +113,6 @@ export default function CheckIn() {
       }
       reader.readAsDataURL(file)
     } else {
-      // 展示模式：模擬辨識
       setTimeout(() => {
         const result = { systolic: 138, diastolic: 86, pulse: 74 }
         setOcrResult(result)
@@ -109,6 +125,14 @@ export default function CheckIn() {
   const bpStatus = vitals.systolic && selected
     ? getBPStatus(Number(vitals.systolic), Number(vitals.diastolic), selected.gender)
     : null
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
@@ -149,7 +173,7 @@ export default function CheckIn() {
                       <span className="text-xs text-gray-400 ml-2">{m.id}</span>
                     </div>
                     <div className="flex gap-1">
-                      {m.tags.map(t => (
+                      {(m.tags ?? []).map(t => (
                         <span key={t} className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{t}</span>
                       ))}
                     </div>
@@ -192,9 +216,10 @@ export default function CheckIn() {
                   </div>
                 )}
 
-                <button onClick={handleCheckin}
-                  className="w-full py-4 bg-primary text-white text-lg font-bold rounded-xl hover:bg-primary-light active:scale-95 transition-all shadow-md">
-                  ✓ 確認簽到 — {selected.name}
+                <button onClick={handleCheckin} disabled={saving}
+                  className="w-full py-4 bg-primary text-white text-lg font-bold rounded-xl hover:bg-primary-light active:scale-95 transition-all shadow-md disabled:opacity-60 flex items-center justify-center gap-2">
+                  {saving && <Loader2 className="w-5 h-5 animate-spin" />}
+                  {saving ? '簽到中…' : `✓ 確認簽到 — ${selected.name}`}
                 </button>
               </div>
             )}
@@ -244,8 +269,8 @@ export default function CheckIn() {
           </h3>
           <div className="space-y-2 max-h-[480px] overflow-y-auto">
             {checkins.map(c => {
-              const member = mockMembers.find(m => m.member_id === c.member_id || m.id === c.member_id)
-              const bp = c.systolic !== '-'
+              const member = members.find(m => m.id === c.member_id)
+              const bp = c.systolic != null
                 ? getBPStatus(Number(c.systolic), Number(c.diastolic), member?.gender ?? '女')
                 : null
               return (
@@ -255,17 +280,17 @@ export default function CheckIn() {
                     <div>
                       <p className="font-medium text-gray-800 text-sm">{c.name}</p>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {c.systolic !== '-' && (
+                        {c.systolic != null && (
                           <span className={`text-xs px-1.5 py-0.5 rounded ${bp?.bg} ${bp?.color}`}>
                             {c.systolic}/{c.diastolic} {bp?.label}
                           </span>
                         )}
-                        {c.pulse !== '-' && <span className="text-xs text-gray-400">脈搏 {c.pulse}</span>}
-                        {c.weight !== '-' && <span className="text-xs text-gray-400">{c.weight}kg</span>}
+                        {c.pulse != null && <span className="text-xs text-gray-400">脈搏 {c.pulse}</span>}
+                        {c.weight != null && <span className="text-xs text-gray-400">{c.weight}kg</span>}
                       </div>
                     </div>
                   </div>
-                  <span className="text-xs text-gray-400 font-mono shrink-0">{c.time}</span>
+                  <span className="text-xs text-gray-400 font-mono shrink-0">{c.checkin_time ?? c.time}</span>
                 </div>
               )
             })}

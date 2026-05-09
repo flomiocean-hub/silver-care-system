@@ -1,22 +1,49 @@
-import { Users, UserCheck, DollarSign, AlertTriangle, TrendingUp } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Users, UserCheck, DollarSign, AlertTriangle, Loader2 } from 'lucide-react'
 import StatCard from '../components/dashboard/StatCard'
 import AlertPanel from '../components/dashboard/AlertPanel'
-import { mockMembers, mockAttendance, mockFinance } from '../services/mockData'
+import { getMembers } from '../services/api/members'
+import { getAttendanceSummary } from '../services/api/attendance'
+import { getFinanceRecords } from '../services/api/finance'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, BarChart, Bar
 } from 'recharts'
 
 export default function Dashboard() {
-  const today = mockAttendance[mockAttendance.length - 1]
-  const todayCount    = today?.count ?? 0
-  const todayExpected = today?.expected ?? 0
-  const todayRate     = today?.rate ?? 0
-  const totalMembers  = mockMembers.length
-  const highRiskCount = mockMembers.filter(m => m.risk_score >= 70).length
-  const unpaidTotal   = mockFinance.reduce((s, r) => s + (r.amount_due - r.amount_paid), 0)
+  const [members, setMembers]       = useState([])
+  const [attendance, setAttendance] = useState([])
+  const [finance, setFinance]       = useState([])
+  const [loading, setLoading]       = useState(true)
 
-  const chartData = mockAttendance.map(d => ({
+  const load = useCallback(async () => {
+    setLoading(true)
+    const [m, a, f] = await Promise.all([getMembers(), getAttendanceSummary(), getFinanceRecords()])
+    setMembers(m)
+    setAttendance(a)
+    setFinance(f)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    )
+  }
+
+  const today          = attendance[attendance.length - 1]
+  const todayCount     = today?.count ?? 0
+  const todayExpected  = today?.expected ?? 0
+  const todayRate      = today?.rate ?? 0
+  const totalMembers   = members.length
+  const highRiskCount  = members.filter(m => m.risk_score >= 70).length
+  const unpaidTotal    = finance.reduce((s, r) => s + (r.amount_due - r.amount_paid), 0)
+
+  const chartData = attendance.map(d => ({
     date: d.date.slice(5),
     實到: d.count,
     預計: d.expected,
@@ -27,7 +54,7 @@ export default function Dashboard() {
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-gray-800">首頁儀表板</h1>
-        <p className="text-sm text-gray-400 mt-1">今日 2025-05-03 · 展示資料</p>
+        <p className="text-sm text-gray-400 mt-1">今日 {new Date().toLocaleDateString('zh-TW')} · 即時資料</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -66,9 +93,8 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* 實到 vs 預計 雙線圖 */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">近 7 天出席：實到 vs 預計</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">近期出席：實到 vs 預計</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -82,7 +108,6 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
-        {/* 出席率長條圖 */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-gray-700 mb-4">每日出席率（%）</h3>
           <ResponsiveContainer width="100%" height={200}>
@@ -97,7 +122,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <AlertPanel members={mockMembers} />
+      <AlertPanel members={members} />
     </div>
   )
 }
