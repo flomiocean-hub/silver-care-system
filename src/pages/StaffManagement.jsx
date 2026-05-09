@@ -5,12 +5,14 @@ import { useAudit } from '../contexts/AuditContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
 
 const ROLE_STYLE = {
+  '超級管理者': 'bg-purple-100 text-purple-700',
   '管理者':     'bg-green-100 text-green-700',
   '關懷站專員': 'bg-blue-100 text-blue-700',
 }
 
 export default function StaffManagement() {
-  const { user, users, isAdmin, addStaff, removeStaff } = useAuth()
+  const { user, users, isAdmin, isSuperAdmin, addStaff, removeStaff } = useAuth()
+  const visibleUsers = users.filter(u => isSuperAdmin || u.role !== '超級管理者')
   const { addLog } = useAudit()
   const [showForm, setShowForm]           = useState(false)
   const [deleteTarget, setDeleteTarget]   = useState(null)
@@ -62,7 +64,7 @@ export default function StaffManagement() {
           <h1 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-primary" /> 帳號管理
           </h1>
-          <p className="text-sm text-gray-400 mt-1">共 {users.length} 個帳號</p>
+          <p className="text-sm text-gray-400 mt-1">共 {visibleUsers.length} 個帳號</p>
         </div>
         <button onClick={() => { setShowForm(p => !p); setFormError('') }}
           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-light text-sm font-medium shadow-sm">
@@ -120,9 +122,9 @@ export default function StaffManagement() {
             </tr>
           </thead>
           <tbody>
-            {users.map(u => {
-              const isSelf  = u.id === user.id
-              const isAdminAccount = u.role === '管理者'
+            {visibleUsers.map(u => {
+              const isSelf           = u.id === user.id
+              const isProtectedAccount = u.role === '管理者' || u.role === '超級管理者'
               return (
                 <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                   <td className="py-3 px-4">
@@ -136,7 +138,7 @@ export default function StaffManagement() {
                   </td>
                   <td className="py-3 px-4 font-mono text-xs text-gray-500">{u.username}</td>
                   <td className="py-3 px-4">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_STYLE[u.role]}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_STYLE[u.role] ?? 'bg-gray-100 text-gray-600'}`}>
                       {u.role}
                     </span>
                   </td>
@@ -144,7 +146,7 @@ export default function StaffManagement() {
                     <span className="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded-full">使用中</span>
                   </td>
                   <td className="py-3 px-4 text-right">
-                    {!isSelf && !isAdminAccount ? (
+                    {!isSelf && !isProtectedAccount ? (
                       <button onClick={() => setDeleteTarget(u)}
                         className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                         <Trash2 className="w-4 h-4" />
