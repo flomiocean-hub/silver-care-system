@@ -5,19 +5,32 @@ const INITIAL_USERS = [
   { id: 2, username: 'staff01', password: 'staff2025',  name: '李志明',     role: '關懷站專員' },
 ]
 
+const STORAGE_KEY = 'sc_user'
+
+function loadUser() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) } catch { return null }
+}
+
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser]   = useState(null)
+  const [user, setUser]   = useState(loadUser)
   const [users, setUsers] = useState(INITIAL_USERS)
 
   function login(username, password) {
     const found = users.find(u => u.username === username && u.password === password)
-    if (found) { setUser(found); return true }
+    if (found) {
+      setUser(found)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(found))
+      return true
+    }
     return false
   }
 
-  function logout() { setUser(null) }
+  function logout() {
+    setUser(null)
+    localStorage.removeItem(STORAGE_KEY)
+  }
 
   function addStaff({ username, password, name }) {
     const id = Math.max(...users.map(u => u.id)) + 1
