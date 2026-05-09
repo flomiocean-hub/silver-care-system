@@ -40,6 +40,12 @@ export async function getCourseFinanceRecords() {
   }))
 }
 
+// 相容舊版呼叫：合併課程費 + 午餐費
+export async function getFinanceRecords() {
+  const [lunch, course] = await Promise.all([getLunchRecords(), getCourseFinanceRecords()])
+  return [...course, ...lunch]
+}
+
 export async function updateEnrollmentPaid(enrollmentId, amountPaid) {
   const { error } = await supabase
     .from('enrollments')
