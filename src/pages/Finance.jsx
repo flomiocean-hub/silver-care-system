@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { DollarSign, Download, Mail, AlertCircle } from 'lucide-react'
 import { mockFinance } from '../services/mockData'
+import { useAudit } from '../contexts/AuditContext'
 
 function getStatus(r) {
   if (r.amount_paid >= r.amount_due) return { label: '已繳', icon: '✅', cls: 'bg-green-50 text-green-700' }
@@ -13,6 +14,7 @@ function getStatus(r) {
 }
 
 export default function Finance() {
+  const { addLog } = useAudit()
   const [records] = useState(mockFinance)
   const [view, setView] = useState('all')
   const [emailSent, setEmailSent] = useState(false)
@@ -55,10 +57,12 @@ export default function Finance() {
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
     a.download = '財務收支明細.csv'; a.click()
+    addLog({ action: '匯出', module: '財務追蹤', target: '財務收支明細.csv', detail: `匯出 ${records.length} 筆收支記錄` })
   }
 
   function handleEmailAlert() {
     setEmailSent(true)
+    addLog({ action: '發送通知', module: '財務追蹤', target: 'AI 欠費通知', detail: `發送 ${unpaidList.length} 筆欠費通知至管理群組` })
     setTimeout(() => setEmailSent(false), 4000)
   }
 

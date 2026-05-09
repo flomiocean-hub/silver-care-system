@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Search, UserPlus, Trash2, Edit3, Phone, MapPin, User, Home } from 'lucide-react'
+import { Search, UserPlus, Trash2, Edit3, Phone, MapPin, User } from 'lucide-react'
 import { mockMembers } from '../services/mockData'
 import { getRiskLevel } from '../utils/riskScoring'
-import AdminPasswordModal from '../components/layout/AdminPasswordModal'
+import ConfirmDialog from '../components/layout/ConfirmDialog'
+import { useAuth } from '../contexts/AuthContext'
+import { useAudit } from '../contexts/AuditContext'
 
 const TAG_COLORS = {
   '獨居':     'bg-orange-100 text-orange-700',
@@ -12,17 +14,15 @@ const TAG_COLORS = {
   '電訪追蹤': 'bg-blue-100 text-blue-700',
 }
 
-const MEMBER_TYPES = ['出席型', '探訪型']
-
-const AVAILABLE_TAGS = ['獨居', '高風險', '電訪追蹤', '探訪']
-
-const FILTER_OPTIONS = [
-  { key: 'all',     label: '全部' },
-  { key: 'alone',   label: '獨居' },
-  { key: 'high',    label: '高風險' },
-  { key: 'absent',  label: '久未出席' },
-  { key: 'visit',   label: '探訪型' },
-  { key: 'phone',   label: '電訪追蹤' },
+const MEMBER_TYPES    = ['出席型', '探訪型']
+const AVAILABLE_TAGS  = ['獨居', '高風險', '電訪追蹤', '探訪']
+const FILTER_OPTIONS  = [
+  { key: 'all',    label: '全部' },
+  { key: 'alone',  label: '獨居' },
+  { key: 'high',   label: '高風險' },
+  { key: 'absent', label: '久未出席' },
+  { key: 'visit',  label: '探訪型' },
+  { key: 'phone',  label: '電訪追蹤' },
 ]
 
 function generateId(members) {
@@ -34,13 +34,14 @@ function generateId(members) {
 }
 
 export default function Members() {
-  const [members, setMembers] = useState(mockMembers)
-  const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState('all')
-  const [showForm, setShowForm] = useState(false)
-  const [editTarget, setEditTarget] = useState(null)
+  const { isAdmin } = useAuth()
+  const { addLog }  = useAudit()
+
+  const [members, setMembers]           = useState(mockMembers)
+  const [query, setQuery]               = useState('')
+  const [filter, setFilter]             = useState('all')
+  const [showForm, setShowForm]         = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [modal, setModal] = useState(null) // 'delete' | 'edit'
 
   const emptyForm = {
     name: '', birthday: '', gender: '女', mobile: '', home_phone: '', address: '',
@@ -79,54 +80,38 @@ export default function Members() {
       weight_baseline: null,
     }
     setMembers(p => [...p, member])
+    addLog({ action: '新增', module: '長者管理', target: `${member.name}（${member.id}）`, detail: '新增長者基本資料' })
     setForm(emptyForm)
     setShowForm(false)
   }
 
   function startEdit(m) {
-    setEditTarget(m)
-    setModal('edit')
-  }
-
-  function startDelete(m) {
-    setDeleteTarget(m)
-    setModal('delete')
-  }
-
-  function confirmDelete() {
-    setMembers(p => p.filter(m => m.id !== deleteTarget.id))
-    setModal(null)
-    setDeleteTarget(null)
-  }
-
-  function confirmEdit() {
-    setForm({ ...editTarget })
-    setModal(null)
+    setForm({ ...m })
     setShowForm('edit')
   }
 
   function handleEditSave(e) {
     e.preventDefault()
     setMembers(p => p.map(m => m.id === form.id ? { ...m, ...form } : m))
+    addLog({ action: '修改', module: '長者管理', target: `${form.name}（${form.id}）`, detail: '修改長者資料' })
     setShowForm(false)
-    setEditTarget(null)
     setForm(emptyForm)
+  }
+
+  function confirmDelete() {
+    addLog({ action: '刪除', module: '長者管理', target: `${deleteTarget.name}（${deleteTarget.id}）`, detail: '刪除長者資料' })
+    setMembers(p => p.filter(m => m.id !== deleteTarget.id))
+    setDeleteTarget(null)
   }
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-      {modal === 'delete' && (
-        <AdminPasswordModal
-          title={`確定要刪除「${deleteTarget?.name}」的資料嗎？此操作無法復原。`}
+      {deleteTarget && (
+        <ConfirmDialog
+          title={`確定要刪除「${deleteTarget.name}」的資料嗎？`}
+          message="此操作無法復原，長者所有相關資料將一併移除。"
           onConfirm={confirmDelete}
-          onCancel={() => { setModal(null); setDeleteTarget(null) }}
-        />
-      )}
-      {modal === 'edit' && (
-        <AdminPasswordModal
-          title={`確定要修改「${editTarget?.name}」的資料嗎？請輸入管理員密碼繼續。`}
-          onConfirm={confirmEdit}
-          onCancel={() => { setModal(null); setEditTarget(null) }}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
 
@@ -199,8 +184,7 @@ export default function Members() {
               <label className="text-xs text-gray-500 block mb-2">狀態標籤</label>
               <div className="flex flex-wrap gap-2">
                 {AVAILABLE_TAGS.map(tag => (
-                  <button type="button" key={tag}
-                    onClick={() => toggleTag(tag)}
+                  <button type="button" key={tag} onClick={() => toggleTag(tag)}
                     className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                       form.tags.includes(tag)
                         ? 'bg-primary text-white border-primary'
@@ -258,13 +242,16 @@ export default function Members() {
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => startEdit(m)}
-                    className="p-1.5 text-gray-400 hover:text-primary hover:bg-green-50 rounded-lg transition-colors">
+                    className="p-1.5 text-gray-400 hover:text-primary hover:bg-green-50 rounded-lg transition-colors" title="修改">
                     <Edit3 className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => startDelete(m)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {/* 刪除：僅管理者可見 */}
+                  {isAdmin && (
+                    <button onClick={() => setDeleteTarget(m)}
+                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="刪除（管理者）">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
 

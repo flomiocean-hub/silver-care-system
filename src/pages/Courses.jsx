@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { BookOpen, Users, Calculator, Download, Plus, Wallet, Clock, Link, Check } from 'lucide-react'
 import { mockCourses, mockEnrollments, mockMembers } from '../services/mockData'
 import { calcProRatedFee } from '../utils/billing'
+import { useAudit } from '../contexts/AuditContext'
 
 const emptyForm = {
   name: '', session: 'A', instructor: '', description: '', expected_outcome: '',
@@ -12,6 +13,7 @@ const emptyForm = {
 
 export default function Courses() {
   const navigate = useNavigate()
+  const { addLog } = useAudit()
   const [courses, setCourses] = useState(mockCourses)
   const [enrollments, setEnrollments] = useState(mockEnrollments)
   const [copiedId, setCopiedId] = useState(null)
@@ -50,6 +52,7 @@ export default function Courses() {
       total_sessions: Number(form.total_sessions), materials_fee: Number(form.materials_fee),
     }
     setCourses(p => [...p, newCourse])
+    addLog({ action: '新增', module: '課程管理', target: newCourse.name, detail: `開設新課程（${newCourse.day} ${newCourse.time}・${newCourse.instructor}）` })
     setForm(emptyForm)
     setShowForm(false)
   }
@@ -85,6 +88,12 @@ export default function Courses() {
       ? isFull ? { ...c, waitlist: c.waitlist + 1 } : { ...c, enrolled: c.enrolled + 1 }
       : c
     ))
+    addLog({
+      action: '新增',
+      module: '課程管理',
+      target: `${enrollName.trim()} → ${course.name}`,
+      detail: isFull ? `加入候補名單（後補${waitlistCount + 1}）` : `完成報名・繳費 ${Number(enrollPaid) || 0} 元`,
+    })
     setEnrollModal(null)
     setEnrollName('')
     setEnrollPaid('')

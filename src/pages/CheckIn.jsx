@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { Search, CheckCircle, Upload, Clock, AlertTriangle } from 'lucide-react'
 import { mockMembers, mockTodayCheckins, mockHealthData } from '../services/mockData'
 import { getBPStatus, checkWeightAlert } from '../utils/riskScoring'
+import { useAudit } from '../contexts/AuditContext'
 
 export default function CheckIn() {
+  const { addLog } = useAudit()
   const [query, setQuery] = useState('')
   const [checkins, setCheckins] = useState(mockTodayCheckins)
   const [selected, setSelected] = useState(null)
@@ -48,6 +50,14 @@ export default function CheckIn() {
       weight: vitals.weight || '-',
     }
     setCheckins(prev => [newEntry, ...prev])
+    addLog({
+      action: '簽到',
+      module: '數位簽到',
+      target: selected.name,
+      detail: vitals.systolic
+        ? `血壓 ${vitals.systolic}/${vitals.diastolic} mmHg・脈搏 ${vitals.pulse || '—'}・體重 ${vitals.weight || '—'} kg`
+        : '無生理數據',
+    })
     setShowSuccess(true)
     setSelected(null)
     setQuery('')
