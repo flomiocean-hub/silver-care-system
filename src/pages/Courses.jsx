@@ -58,19 +58,37 @@ export default function Courses() {
   async function handleCreateCourse(e) {
     e.preventDefault()
     setSaving(true)
-    const newCourse = {
-      ...form,
-      id: `C${Date.now()}`,
-      enrolled: 0, waitlist: 0, materials_spent: 0, status: 'active',
-      capacity: Number(form.capacity), total_fee: Number(form.total_fee),
-      total_sessions: Number(form.total_sessions), materials_fee: Number(form.materials_fee),
+    try {
+      const newCourse = {
+        id:               `C${Date.now()}`,
+        name:             form.name,
+        session:          form.session || 'A',
+        instructor:       form.instructor || '',
+        description:      form.description || '',
+        expected_outcome: form.expected_outcome || '',
+        day:              form.day || '',
+        time:             form.time || '',
+        start_date:       form.start_date || null,
+        capacity:         Number(form.capacity) || 25,
+        total_fee:        Number(form.total_fee) || 0,
+        total_sessions:   Number(form.total_sessions) || 4,
+        materials_fee:    Number(form.materials_fee) || 0,
+        enrolled:         0,
+        waitlist:         0,
+        materials_spent:  0,
+        status:           'active',
+      }
+      await addCourse(newCourse)
+      addLog({ action: '新增', module: '課程管理', target: newCourse.name, detail: `開設新課程（${newCourse.day} ${newCourse.time}・${newCourse.instructor}）` })
+      setForm(emptyForm)
+      setShowForm(false)
+      await load()
+    } catch (err) {
+      console.error('新增課程失敗:', err)
+      alert(`新增失敗：${err.message}`)
+    } finally {
+      setSaving(false)
     }
-    const created = await addCourse(newCourse)
-    addLog({ action: '新增', module: '課程管理', target: newCourse.name, detail: `開設新課程（${newCourse.day} ${newCourse.time}・${newCourse.instructor}）` })
-    setForm(emptyForm)
-    setShowForm(false)
-    await load()
-    setSaving(false)
   }
 
   async function handleEnroll() {
