@@ -15,41 +15,31 @@ import CourseRegister from './pages/CourseRegister'
 import AuditLog from './pages/AuditLog'
 import StaffManagement from './pages/StaffManagement'
 
-function AppShell() {
+function AdminShell() {
   const { user } = useAuth()
   if (!user) return <Login />
 
   return (
     <AuditProvider>
-      <BrowserRouter basename={import.meta.env.BASE_URL}>
-        <Routes>
-          {/* 報名頁：獨立全螢幕，無 Navbar/Sidebar */}
-          <Route path="/register/:courseId" element={<CourseRegister />} />
-
-          {/* 管理後台 */}
-          <Route path="/*" element={
-            <div className="min-h-screen bg-surface flex flex-col">
-              <Navbar />
-              <div className="flex flex-1 overflow-hidden">
-                <Sidebar />
-                <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
-                  <Routes>
-                    <Route path="/"           element={<Dashboard />} />
-                    <Route path="/checkin"    element={<CheckIn />} />
-                    <Route path="/members"    element={<Members />} />
-                    <Route path="/courses"    element={<Courses />} />
-                    <Route path="/finance"    element={<Finance />} />
-                    <Route path="/ai-insights"element={<AIInsights />} />
-                    <Route path="/logs"       element={<AuditLog />} />
-                    <Route path="/staff"      element={<StaffManagement />} />
-                  </Routes>
-                </main>
-              </div>
-              <BottomNav />
-            </div>
-          } />
-        </Routes>
-      </BrowserRouter>
+      <div className="min-h-screen bg-surface flex flex-col">
+        <Navbar />
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar />
+          <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+            <Routes>
+              <Route path="/"            element={<Dashboard />} />
+              <Route path="/checkin"     element={<CheckIn />} />
+              <Route path="/members"     element={<Members />} />
+              <Route path="/courses"     element={<Courses />} />
+              <Route path="/finance"     element={<Finance />} />
+              <Route path="/ai-insights" element={<AIInsights />} />
+              <Route path="/logs"        element={<AuditLog />} />
+              <Route path="/staff"       element={<StaffManagement />} />
+            </Routes>
+          </main>
+        </div>
+        <BottomNav />
+      </div>
     </AuditProvider>
   )
 }
@@ -57,7 +47,14 @@ function AppShell() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppShell />
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <Routes>
+          {/* 公開報名頁：不需登入 */}
+          <Route path="/register/:courseId" element={<CourseRegister />} />
+          {/* 管理後台：需登入 */}
+          <Route path="/*" element={<AdminShell />} />
+        </Routes>
+      </BrowserRouter>
     </AuthProvider>
   )
 }

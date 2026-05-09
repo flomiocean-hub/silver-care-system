@@ -1,17 +1,36 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { Calendar, Clock, User, Users, BookOpen, CheckCircle, AlertCircle, MapPin, DollarSign } from 'lucide-react'
-import { mockCourses, mockEnrollments } from '../services/mockData'
+import { Calendar, Clock, User, Users, BookOpen, CheckCircle, AlertCircle, MapPin, DollarSign, Loader2 } from 'lucide-react'
+import { getCourses, getEnrollments, addEnrollment, updateCourseCount } from '../services/api/courses'
 
 export default function CourseRegister() {
   const { courseId } = useParams()
-  const course = mockCourses.find(c => c.id === courseId)
+  const [course, setCourse]         = useState(null)
+  const [enrollments, setEnrollments] = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState(false)
+  const [name, setName]             = useState('')
+  const [phone, setPhone]           = useState('')
+  const [submitted, setSubmitted]   = useState(null)
+  const [error, setError]           = useState('')
 
-  const [enrollments, setEnrollments] = useState(mockEnrollments)
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [submitted, setSubmitted] = useState(null) // { type: 'enrolled' | 'waitlist', no?: number }
-  const [error, setError] = useState('')
+  useEffect(() => {
+    async function load() {
+      const [courses, enrs] = await Promise.all([getCourses(), getEnrollments()])
+      setCourse(courses.find(c => c.id === courseId) ?? null)
+      setEnrollments(enrs.filter(e => e.course_id === courseId))
+      setLoading(false)
+    }
+    load()
+  }, [courseId])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    )
+  }
 
   if (!course) {
     return (
@@ -25,38 +44,34 @@ export default function CourseRegister() {
     )
   }
 
-  const enrolled  = enrollments.filter(e => e.course_id === courseId && !e.is_waitlist)
-  const waitlist  = enrollments.filter(e => e.course_id === courseId && e.is_waitlist)
-    .sort((a, b) => a.waitlist_no - b.waitlist_no)
+  const enrolled  = enrollments.filter(e => !e.is_waitlist)
+  const waitlist  = enrollments.filter(e => e.is_waitlist).sort((a, b) => a.waitlist_no - b.waitlist_no)
   const remaining = course.capacity - enrolled.length
   const isFull    = remaining <= 0
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     setError('')
     if (!name.trim()) { setError('請填寫姓名'); return }
 
-    const alreadyIn = enrollments.find(
-      en => en.course_id === courseId && en.member_name.trim() === name.trim()
-    )
+    const alreadyIn = enrollments.find(en => en.member_name?.trim() === name.trim())
     if (alreadyIn) { setError('此姓名已報名，請聯繫據點確認'); return }
 
-    if (isFull) {
-      const no = waitlist.length + 1
-      setEnrollments(p => [...p, {
-        id: `E${Date.now()}`, member_id: '', member_name: name.trim(),
-        course_id: courseId, sessions_remaining: course.total_sessions,
-        total_paid: 0, total_fee: course.total_fee, is_waitlist: true, waitlist_no: no,
-      }])
-      setSubmitted({ type: 'waitlist', no })
-    } else {
-      setEnrollments(p => [...p, {
-        id: `E${Date.now()}`, member_id: '', member_name: name.trim(),
-        course_id: courseId, sessions_remaining: course.total_sessions,
-        total_paid: 0, total_fee: course.total_fee, is_waitlist: false,
-      }])
-      setSubmitted({ type: 'enrolled' })
-    }
+    setSaving(true)
+    const waitlistNo = isFull ? waitlist.length + 1 : null
+    await addEnrollment({
+      member_id: null,
+      member_name: name.trim(),
+      course_id: courseId,
+      sessions_remaining: course.total_sessions,
+      total_paid: 0,
+      total_fee: course.total_fee,
+      is_waitlist: isFull,
+      waitlist_no: waitlistNo,
+    })
+    await updateCourseCount(courseId, isFull ? 'waitlist' : 'enrolled', 1)
+    setSubmitted({ type: isFull ? 'waitlist' : 'enrolled', no: waitlistNo })
+    setSaving(false)
   }
 
   if (submitted) {
@@ -96,7 +111,6 @@ export default function CourseRegister() {
 
   return (
     <div className="min-h-screen bg-surface">
-      {/* Header */}
       <div className="bg-primary text-white px-4 py-6 text-center">
         <p className="text-green-200 text-xs mb-1">關懷據點 · 課程報名</p>
         <h1 className="text-2xl font-bold">{course.name}</h1>
@@ -104,7 +118,6 @@ export default function CourseRegister() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
-        {/* 課程資訊卡 */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 space-y-3">
           <h2 className="font-semibold text-gray-700 flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-primary" /> 課程資訊
@@ -146,7 +159,6 @@ export default function CourseRegister() {
           )}
         </div>
 
-        {/* 名額狀態 */}
         <div className={`rounded-2xl shadow-sm border p-5 ${isFull ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -163,17 +175,14 @@ export default function CourseRegister() {
             </div>
           </div>
           <div className="w-full bg-white rounded-full h-2.5 shadow-inner">
-            <div
-              className={`h-2.5 rounded-full transition-all ${isFull ? 'bg-amber-400' : 'bg-primary'}`}
-              style={{ width: `${Math.min((enrolled.length / course.capacity) * 100, 100)}%` }}
-            />
+            <div className={`h-2.5 rounded-full transition-all ${isFull ? 'bg-amber-400' : 'bg-primary'}`}
+              style={{ width: `${Math.min((enrolled.length / course.capacity) * 100, 100)}%` }} />
           </div>
           <p className="text-xs text-gray-400 mt-2 text-right">
             已報名 {enrolled.length} / 上限 {course.capacity} 人
           </p>
         </div>
 
-        {/* 已報名名單 */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
           <h2 className="font-semibold text-gray-700 flex items-center gap-2 mb-4">
             <Users className="w-4 h-4 text-primary" />
@@ -184,22 +193,19 @@ export default function CourseRegister() {
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {enrolled.map((e, i) => (
-                <div key={e.id}
-                  className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
+                <div key={e.id} className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
                   <span className="text-xs text-green-400 font-mono w-4 shrink-0">{i + 1}</span>
                   <span className="text-sm text-green-800 font-medium truncate">{e.member_name}</span>
                 </div>
               ))}
             </div>
           )}
-
           {waitlist.length > 0 && (
             <div className="mt-4 pt-4 border-t border-gray-100">
               <p className="text-xs text-amber-600 font-semibold mb-2">後補名單</p>
               <div className="grid grid-cols-3 gap-2">
                 {waitlist.map(e => (
-                  <div key={e.id}
-                    className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                  <div key={e.id} className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
                     <span className="text-xs text-amber-400 font-mono w-6 shrink-0">後{e.waitlist_no}</span>
                     <span className="text-sm text-amber-800 truncate">{e.member_name}</span>
                   </div>
@@ -209,7 +215,6 @@ export default function CourseRegister() {
           )}
         </div>
 
-        {/* 報名表單 */}
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 space-y-4">
           <h2 className="font-semibold text-gray-700">
             {isFull ? '加入後補名單' : '立即報名'}
@@ -221,32 +226,25 @@ export default function CourseRegister() {
           )}
           <div>
             <label className="text-sm text-gray-600 block mb-1.5">您的姓名 <span className="text-red-400">*</span></label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => { setName(e.target.value); setError('') }}
+            <input type="text" value={name} onChange={e => { setName(e.target.value); setError('') }}
               placeholder="請輸入真實姓名"
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
           <div>
             <label className="text-sm text-gray-600 block mb-1.5">聯絡電話（選填）</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
+            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
               placeholder="09XX-XXX-XXX"
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
           {error && (
             <div className="flex items-center gap-2 text-red-500 text-sm">
               <AlertCircle className="w-4 h-4 shrink-0" /> {error}
             </div>
           )}
-          <button type="submit"
-            className="w-full py-4 bg-primary text-white text-base font-bold rounded-xl hover:bg-primary-light active:scale-95 transition-all shadow-md">
-            {isFull ? '加入後補名單' : '確認報名'}
+          <button type="submit" disabled={saving}
+            className="w-full py-4 bg-primary text-white text-base font-bold rounded-xl hover:bg-primary-light active:scale-95 transition-all shadow-md disabled:opacity-60 flex items-center justify-center gap-2">
+            {saving && <Loader2 className="w-5 h-5 animate-spin" />}
+            {saving ? '送出中…' : isFull ? '加入後補名單' : '確認報名'}
           </button>
           <p className="text-xs text-gray-400 text-center">
             費用請至現場繳交 · 報名後如需取消請聯繫據點
