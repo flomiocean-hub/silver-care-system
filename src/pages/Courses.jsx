@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Users, Calculator, Download, Plus, Wallet, Clock, Link, Check, Loader2, Trash2, X } from 'lucide-react'
+import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X } from 'lucide-react'
 import { calcProRatedFee } from '../utils/billing'
 import { useAudit } from '../contexts/AuditContext'
 import { useAuth } from '../contexts/AuthContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
-import { getCourses, addCourse, getEnrollments, addEnrollment, updateCourseCount, deleteCourse, deleteEnrollment, updateEnrollmentPayment } from '../services/api/courses'
+import { getCourses, addCourse, getEnrollments, addEnrollment, updateCourseCount, deleteCourse, deleteEnrollment, updateEnrollmentPayment, updateEnrollmentMaterialPaid } from '../services/api/courses'
 
 const emptyForm = {
   name: '', session: 'A', instructor: '', description: '', expected_outcome: '',
@@ -22,10 +22,11 @@ export default function Courses() {
   const [loading, setLoading]         = useState(true)
   const [saving, setSaving]           = useState(false)
   const [deleteTarget, setDeleteTarget]   = useState(null)
-  const [memberModal, setMemberModal]     = useState(null) // { enrollment, course }
-  const [payInput, setPayInput]           = useState('')
-  const [modalSaving, setModalSaving]     = useState(false)
-  const [cancelConfirm, setCancelConfirm] = useState(false)
+  const [memberModal, setMemberModal]         = useState(null) // { enrollment, course }
+  const [payInput, setPayInput]               = useState('')
+  const [materialPayInput, setMaterialPayInput] = useState('')
+  const [modalSaving, setModalSaving]         = useState(false)
+  const [cancelConfirm, setCancelConfirm]     = useState(false)
   const [copiedId, setCopiedId]           = useState(null)
   const [calcInput, setCalcInput]   = useState({ totalFee: 200, totalSessions: 4, remaining: 2 })
   const [showForm, setShowForm]     = useState(false)
@@ -140,6 +141,7 @@ export default function Courses() {
   function openMemberModal(enrollment, course) {
     setMemberModal({ enrollment, course })
     setPayInput(String(enrollment.total_paid ?? 0))
+    setMaterialPayInput(String(enrollment.material_paid ?? 0))
     setCancelConfirm(false)
   }
 
@@ -153,6 +155,23 @@ export default function Courses() {
         action: '修改', module: '課程管理',
         target: `${memberModal.enrollment.member_name} — ${memberModal.course.name}`,
         detail: `繳費更新：${newPaid} 元`,
+      })
+      await load()
+      setMemberModal(null)
+    } catch (err) { alert(`更新失敗：${err.message}`) }
+    finally { setModalSaving(false) }
+  }
+
+  async function handleUpdateMaterialPayment() {
+    if (!memberModal) return
+    setModalSaving(true)
+    try {
+      const newPaid = Number(materialPayInput) || 0
+      await updateEnrollmentMaterialPaid(memberModal.enrollment.id, newPaid)
+      addLog({
+        action: '修改', module: '課程管理',
+        target: `${memberModal.enrollment.member_name} — ${memberModal.course.name}`,
+        detail: `材料費繳費更新：${newPaid} 元`,
       })
       await load()
       setMemberModal(null)
@@ -246,15 +265,16 @@ export default function Courses() {
               </p>
             </div>
 
-            {/* 繳費管理 */}
+            {/* 課程費 */}
             {memberModal.course.total_fee > 0 && (
               <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">課程費</p>
                 <div className="flex justify-between text-sm text-gray-500">
-                  <span>應繳金額</span>
+                  <span>應繳</span>
                   <span className="font-medium text-gray-800">{memberModal.course.total_fee} 元</span>
                 </div>
                 <div className="flex justify-between text-sm text-gray-500">
-                  <span>目前已繳</span>
+                  <span>已繳</span>
                   <span className={`font-medium ${memberModal.enrollment.total_paid >= memberModal.course.total_fee ? 'text-green-600' : 'text-amber-500'}`}>
                     {memberModal.enrollment.total_paid} 元
                   </span>
@@ -266,15 +286,49 @@ export default function Courses() {
                   </span>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">更新已繳金額（元）</label>
+                  <label className="text-xs text-gray-500 block mb-1">更新課程費已繳（元）</label>
                   <input type="number" value={payInput} onChange={e => setPayInput(e.target.value)}
-                    min={0} max={memberModal.course.total_fee}
+                    min={0}
                     className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                 </div>
                 <button onClick={handleUpdatePayment} disabled={modalSaving}
                   className="w-full py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light disabled:opacity-60 flex items-center justify-center gap-2">
                   {modalSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  儲存繳費紀錄
+                  儲存課程費
+                </button>
+              </div>
+            )}
+
+            {/* 材料費 */}
+            {memberModal.course.materials_fee > 0 && (
+              <div className="space-y-2 pt-3 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">材料費</p>
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>應繳</span>
+                  <span className="font-medium text-gray-800">{memberModal.course.materials_fee} 元</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>已繳</span>
+                  <span className={`font-medium ${(memberModal.enrollment.material_paid ?? 0) >= memberModal.course.materials_fee ? 'text-green-600' : 'text-amber-500'}`}>
+                    {memberModal.enrollment.material_paid ?? 0} 元
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-500">
+                  <span>尚欠</span>
+                  <span className="font-medium text-red-500">
+                    {Math.max(0, memberModal.course.materials_fee - (memberModal.enrollment.material_paid ?? 0))} 元
+                  </span>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">更新材料費已繳（元）</label>
+                  <input type="number" value={materialPayInput} onChange={e => setMaterialPayInput(e.target.value)}
+                    min={0}
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <button onClick={handleUpdateMaterialPayment} disabled={modalSaving}
+                  className="w-full py-2 bg-amber-500 text-white rounded-xl text-sm font-medium hover:bg-amber-600 disabled:opacity-60 flex items-center justify-center gap-2">
+                  {modalSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  儲存材料費
                 </button>
               </div>
             )}
@@ -370,8 +424,8 @@ export default function Courses() {
               { key: 'start_date', label: '開課日期', req: false, type: 'date' },
               { key: 'capacity', label: '名額上限', req: false, type: 'number' },
               { key: 'total_sessions', label: '總堂數', req: false, type: 'number' },
-              { key: 'total_fee', label: '每人費用（元）', req: false, type: 'number' },
-              { key: 'materials_fee', label: '材料費預算（元）', req: false, type: 'number' },
+              { key: 'total_fee', label: '每人報名費（元）', req: false, type: 'number' },
+              { key: 'materials_fee', label: '每人材料費（元）', req: false, type: 'number' },
             ].map(({ key, label, req, type }) => (
               <div key={key}>
                 <label className="text-xs text-gray-500 block mb-1">{label}</label>
@@ -430,7 +484,6 @@ export default function Courses() {
           const enrolled = getEnrolled(c.id)
           const waitlist = getWaitlist(c.id)
           const isFull = c.enrolled >= c.capacity
-          const materialsRemaining = c.materials_fee - c.materials_spent
 
           return (
             <div key={c.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
@@ -469,17 +522,9 @@ export default function Courses() {
               </div>
 
               {c.materials_fee > 0 && (
-                <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs">
-                  <div className="flex items-center gap-1 font-medium text-amber-700 mb-1">
-                    <Wallet className="w-3 h-3" /> 材料費專案帳
-                  </div>
-                  <div className="flex justify-between text-amber-600">
-                    <span>預算 {c.materials_fee} 元</span>
-                    <span>已用 {c.materials_spent} 元</span>
-                    <span className={materialsRemaining < 0 ? 'text-red-600 font-bold' : ''}>
-                      餘額 {materialsRemaining} 元
-                    </span>
-                  </div>
+                <div className="mb-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs flex items-center justify-between">
+                  <span className="font-medium text-amber-700">🎨 材料費</span>
+                  <span className="text-amber-600 font-medium">每人 {c.materials_fee} 元</span>
                 </div>
               )}
 
@@ -513,12 +558,14 @@ export default function Courses() {
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {enrolled.map(e => {
-                      const diff = e.total_fee - e.total_paid
+                      const totalDue  = (e.total_fee ?? 0) + (c.materials_fee ?? 0)
+                      const totalPaid = (e.total_paid ?? 0) + (e.material_paid ?? 0)
+                      const diff = totalDue - totalPaid
                       return (
                         <button key={e.id} onClick={() => openMemberModal(e, c)}
                           className={`text-xs px-2 py-0.5 rounded-full cursor-pointer hover:opacity-75 transition-opacity ${
                             diff === 0 ? 'bg-green-50 text-green-700' :
-                            diff === e.total_fee ? 'bg-red-50 text-red-600' :
+                            diff === totalDue ? 'bg-red-50 text-red-600' :
                             'bg-yellow-50 text-yellow-700'
                           }`}>
                           {e.member_name}

@@ -33,6 +33,11 @@ export async function updateEnrollmentPayment(enrollmentId, totalPaid) {
   if (error) throw error
 }
 
+export async function updateEnrollmentMaterialPaid(enrollmentId, materialPaid) {
+  const { error } = await supabase.from('enrollments').update({ material_paid: materialPaid }).eq('id', enrollmentId)
+  if (error) throw error
+}
+
 export async function deleteCourse(courseId) {
   // 先刪報名記錄，再刪課程
   await supabase.from('enrollments').delete().eq('course_id', courseId)
