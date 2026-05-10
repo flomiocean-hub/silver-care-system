@@ -26,9 +26,10 @@ function buildUserFromRecord(record) {
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser]               = useState(loadUser)
-  const [currentOrg, setCurrentOrg]   = useState(loadOrg)
-  const [googleError, setGoogleError] = useState('')
+  const [user, setUser]                       = useState(loadUser)
+  const [currentOrg, setCurrentOrg]           = useState(loadOrg)
+  const [pendingSuperAdmin, setPendingSuperAdmin] = useState(null) // 驗證完但尚未選組織
+  const [googleError, setGoogleError]         = useState('')
 
   function applySession(userObj, org) {
     setUser(userObj)
@@ -66,10 +67,9 @@ export function AuthProvider({ children }) {
   // 帳號密碼登入（管理者 + 超級管理者）
   // 回傳: { ok, needOrgPick }
   async function login(username, password) {
-    // 超級管理者：本地驗證，需要後續選組織
+    // 超級管理者：本地驗證，暫存等待選組織（不立刻 setUser，避免跳過 org 選擇）
     if (username === SUPERADMIN.username && password === SUPERADMIN.password) {
-      setUser(SUPERADMIN)
-      localStorage.setItem(USER_KEY, JSON.stringify(SUPERADMIN))
+      setPendingSuperAdmin(SUPERADMIN)
       return { ok: true, needOrgPick: true }
     }
 
@@ -81,10 +81,11 @@ export function AuthProvider({ children }) {
     return { ok: true, needOrgPick: false }
   }
 
-  // 超級管理者選完組織後呼叫
+  // 超級管理者選完組織後呼叫，才真正完成登入
   function completeSuperAdminLogin(org) {
-    setCurrentOrg(org)
-    saveOrg(org)
+    if (!pendingSuperAdmin) return
+    applySession(pendingSuperAdmin, org)
+    setPendingSuperAdmin(null)
   }
 
   async function loginWithGoogle() {
@@ -108,7 +109,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, currentOrg,
+      user, currentOrg, pendingSuperAdmin,
       login, completeSuperAdminLogin, loginWithGoogle, logout,
       isAdmin, isSuperAdmin,
       googleError, setGoogleError,
