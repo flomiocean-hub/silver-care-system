@@ -42,11 +42,20 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.email) {
-          // Don't override an active password-based session
+        if (event === 'SIGNED_IN' && session?.user?.email) {
+          // Explicit Google login: always process
+          const record = await findUserByEmail(session.user.email)
+          if (record) {
+            applySession(buildUserFromRecord(record), record.organizations)
+            setGoogleError('')
+          } else {
+            await supabase.auth.signOut()
+            setGoogleError('此 Google 帳號尚未被授權，請聯絡管理者新增帳號')
+          }
+        } else if (event === 'INITIAL_SESSION' && session?.user?.email) {
+          // Page reload: only restore if no active password session
           const stored = loadUser()
           if (stored && !stored.google_email) return
-
           const record = await findUserByEmail(session.user.email)
           if (record) {
             applySession(buildUserFromRecord(record), record.organizations)
@@ -94,10 +103,11 @@ export function AuthProvider({ children }) {
 
   async function loginWithGoogle() {
     setGoogleError('')
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: window.location.origin },
     })
+    if (error) setGoogleError('Google 登入失敗：' + error.message)
   }
 
   async function logout() {
