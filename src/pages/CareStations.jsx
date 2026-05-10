@@ -39,6 +39,7 @@ export default function CareStations() {
   const [loading, setLoading]       = useState(true)
   const [selected, setSelected]     = useState(null)
   const [saving, setSaving]         = useState(false)
+  const [saveError, setSaveError]   = useState('')
   const [editStatus, setEditStatus] = useState('')
   const [editNotes, setEditNotes]   = useState('')
   const [editAssigned, setEditAssigned] = useState('')
@@ -100,6 +101,7 @@ export default function CareStations() {
   async function handleSave() {
     if (!selected) return
     setSaving(true)
+    setSaveError('')
     try {
       await updateCareStation(selected.id, {
         status:      editStatus,
@@ -110,6 +112,8 @@ export default function CareStations() {
       setAllRecords(prev => prev.map(r => r.id === selected.id ? updated : r))
       setRecords(prev => prev.map(r => r.id === selected.id ? updated : r))
       setSelected(updated)
+    } catch (err) {
+      setSaveError(err.message ?? '儲存失敗')
     } finally {
       setSaving(false)
     }
@@ -296,6 +300,9 @@ export default function CareStations() {
                   rows={4}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none resize-none" />
               </div>
+              {saveError && (
+                <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{saveError}</p>
+              )}
               <button onClick={handleSave} disabled={saving}
                 className="w-full flex items-center justify-center gap-2 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

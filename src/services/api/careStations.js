@@ -13,21 +13,38 @@ export async function updateCareStation(id, updates) {
   const { error } = await supabase.from('care_stations').update(updates).eq('id', id)
   if (error) throw error
 
-  // Auto-sync to organizations when status becomes active
+  if (!('status' in updates)) return
+
+  // Need the station's org_name for org sync
+  const { data: station } = await supabase.from('care_stations').select('*').eq('id', id).single()
+  if (!station) return
+
   if (updates.status === 'active') {
-    const { data: station } = await supabase.from('care_stations').select('*').eq('id', id).single()
-    if (station) {
-      await supabase.from('organizations').upsert({
-        name:             station.org_name,
-        short_name:       station.org_name.length > 12 ? station.org_name.slice(0, 12) : station.org_name,
-        status:           'active',
-        care_station_id:  station.id,
-      }, { onConflict: 'care_station_id' })
+    const shortName = station.org_name.length > 12
+      ? station.org_name.slice(0, 12)
+      : station.org_name
+
+    // Check by name (org_name is the natural key; avoids care_station_id constraint dependency)
+    const { data: existing } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('name', station.org_name)
+      .maybeSingle()
+
+    if (existing) {
+      await supabase.from('organizations').update({ status: 'active' }).eq('id', existing.id)
+    } else {
+      const { error: orgErr } = await supabase.from('organizations').insert({
+        name: station.org_name,
+        short_name: shortName,
+        status: 'active',
+      })
+      if (orgErr) throw new Error(`組織同步失敗：${orgErr.message}`)
     }
-  } else if ('status' in updates && updates.status !== 'active') {
-    // Mark org inactive if care_station leaves active state
+  } else {
+    // Deactivate org when station leaves active
     await supabase.from('organizations')
       .update({ status: 'inactive' })
-      .eq('care_station_id', id)
+      .eq('name', station.org_name)
   }
 }
