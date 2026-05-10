@@ -44,6 +44,52 @@ ${buildContext(members, healthData, finance)}
   }
 }
 
+// ── 合作單位查詢 ──────────────────────────────────────────────
+const STATUS_LABEL = { active: '合作中', contacted: '已接觸', prospect: '待接觸', inactive: '不跟進' }
+
+export async function askGeminiOrgQuery(question, stations) {
+  // 先做關鍵字過濾，避免傳送 471 筆給 Gemini
+  const keywords = question.replace(/[？?，。！]/g, ' ').split(/\s+/).filter(k => k.length >= 2)
+  const filtered = stations.filter(s =>
+    keywords.some(k =>
+      s.org_name?.includes(k) ||
+      s.district?.includes(k) ||
+      s.contact_person?.includes(k)
+    )
+  ).slice(0, 60)
+
+  const context = (filtered.length > 0 ? filtered : stations.slice(0, 40)).map(s =>
+    `ID:${s.id}｜${s.org_name}｜${s.district}｜${STATUS_LABEL[s.status] ?? '待接觸'}｜聯絡人:${s.contact_person ?? '未填'}｜電話:${s.phone ?? '未填'}`
+  ).join('\n')
+
+  const prompt = `你是台北市社區關懷據點合作查詢助理，用繁體中文回答。
+請根據以下據點資料回答問題，說明是否有合作，並列出相關單位名稱與狀態。
+最後一行輸出 MATCHED_IDS:[id1,id2] 格式（無匹配填空陣列）。
+
+據點資料：
+${context}
+
+問題：${question}`
+
+  if (!model) {
+    // fallback：直接回傳過濾結果
+    return { answer: filtered.length > 0 ? `找到 ${filtered.length} 個相關單位，請參考下方結果。` : '查無相關單位，請嘗試輸入單位名稱或行政區。', matchedIds: filtered.map(s => s.id) }
+  }
+
+  try {
+    const result = await model.generateContent(prompt)
+    const text   = result.response.text()
+    const match  = text.match(/MATCHED_IDS:\[([^\]]*)\]/)
+    const matchedIds = match
+      ? match[1].split(',').map(id => parseInt(id.trim())).filter(Boolean)
+      : filtered.map(s => s.id)
+    const answer = text.replace(/MATCHED_IDS:\[([^\]]*)\]\s*$/, '').trim()
+    return { answer, matchedIds }
+  } catch {
+    return { answer: '查詢發生錯誤，請稍後再試。', matchedIds: filtered.map(s => s.id) }
+  }
+}
+
 // ── OCR 血壓計辨識 ────────────────────────────────────────────
 export async function askGeminiOCR(base64, mimeType = 'image/jpeg') {
   if (!model) return null

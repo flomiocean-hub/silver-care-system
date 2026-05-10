@@ -15,6 +15,7 @@ import CourseRegister from './pages/CourseRegister'
 import AuditLog from './pages/AuditLog'
 import StaffManagement from './pages/StaffManagement'
 import CareStations from './pages/CareStations'
+import OrgQuery from './pages/OrgQuery'
 
 function AdminOnly({ children }) {
   const { isAdmin } = useAuth()
@@ -47,6 +48,7 @@ function AdminShell() {
               <Route path="/logs"        element={<AuditLog />} />
               <Route path="/staff"         element={<AdminOnly><StaffManagement /></AdminOnly>} />
               <Route path="/care-stations" element={<SuperAdminOnly><CareStations /></SuperAdminOnly>} />
+              <Route path="/org-query"     element={<OrgQuery />} />
             </Routes>
           </main>
         </div>
