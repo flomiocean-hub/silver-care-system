@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
-import { ShieldCheck, UserPlus, Trash2, Lock, User, Building2, Mail } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { ShieldCheck, UserPlus, Trash2, Lock, User, Building2, Mail, Pencil, Search } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useAudit } from '../contexts/AuditContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
 import { getActiveOrganizations } from '../services/api/organizations'
-import { getAllUsers, createUser, deleteUser } from '../services/api/users'
+import { getAllUsers, createUser, updateUser, deleteUser } from '../services/api/users'
 
 const ROLE_STYLE = {
   '超級管理者': 'bg-purple-100 text-purple-700',
@@ -25,11 +25,19 @@ export default function StaffManagement() {
   const [dbUsers, setDbUsers]           = useState([])
   const [showForm, setShowForm]         = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [editTarget, setEditTarget]     = useState(null)
   const [formError, setFormError]       = useState('')
+  const [editError, setEditError]       = useState('')
   const [form, setForm]                 = useState({
     name: '', role: '關懷站專員', org_id: '',
     google_email: '', username: '', password: '',
   })
+  const [editForm, setEditForm] = useState({
+    name: '', role: '', org_id: '',
+    google_email: '', username: '', password: '',
+  })
+  const [filterName, setFilterName]   = useState('')
+  const [filterOrg,  setFilterOrg]    = useState('')
 
   useEffect(() => {
     getActiveOrganizations().then(setOrgs)
@@ -46,15 +54,47 @@ export default function StaffManagement() {
     )
   }
 
-  // 組合顯示清單：超級管理者固定排首位
-  const allAccounts = [
-    ...(isSuperAdmin ? [SUPERADMIN_ROW] : []),
-    ...dbUsers.filter(u => isSuperAdmin || u.role !== '超級管理者'),
-  ]
+  // 組合顯示清單
+  const allAccounts = useMemo(() => {
+    const base = [
+      ...(isSuperAdmin ? [SUPERADMIN_ROW] : []),
+      ...dbUsers.filter(u => isSuperAdmin || u.role !== '超級管理者'),
+    ]
+    if (!isSuperAdmin) return base
+    return base.filter(u => {
+      if (filterOrg  && String(u.org_id) !== filterOrg && !u._superadmin) return false
+      if (filterName) {
+        const q = filterName.toLowerCase()
+        if (!u.name?.toLowerCase().includes(q) &&
+            !u.username?.toLowerCase().includes(q) &&
+            !u.google_email?.toLowerCase().includes(q)) return false
+      }
+      return true
+    })
+  }, [dbUsers, isSuperAdmin, filterName, filterOrg])
 
   function resetForm() {
     setForm({ name: '', role: '關懷站專員', org_id: '', google_email: '', username: '', password: '' })
     setFormError('')
+  }
+
+  function openEdit(u) {
+    setEditTarget(u)
+    setEditForm({
+      name:         u.name,
+      role:         u.role,
+      org_id:       u.org_id ?? '',
+      google_email: u.google_email ?? '',
+      username:     u.username ?? '',
+      password:     '',
+    })
+    setEditError('')
+    setShowForm(false)
+  }
+
+  function closeEdit() {
+    setEditTarget(null)
+    setEditError('')
   }
 
   async function handleAdd(e) {
@@ -83,6 +123,32 @@ export default function StaffManagement() {
       setShowForm(false)
     } catch (err) {
       setFormError('新增失敗：' + err.message)
+    }
+  }
+
+  async function handleEdit(e) {
+    e.preventDefault()
+    setEditError('')
+    const orgId = Number(editForm.org_id) || null
+    if (!orgId) { setEditError('請選擇所屬單位'); return }
+    if (editForm.role !== '關懷站專員' && !editForm.username.trim()) {
+      setEditError('管理者必須填寫帳號'); return
+    }
+    try {
+      await updateUser(editTarget.id, {
+        name:         editForm.name.trim(),
+        role:         editForm.role,
+        org_id:       orgId,
+        username:     editForm.username.trim() || null,
+        password:     editForm.password || undefined,
+        google_email: editForm.google_email.trim() || null,
+      })
+      const orgName = orgs.find(o => o.id === orgId)?.name ?? ''
+      addLog({ action: '修改', module: '帳號管理', target: editForm.name.trim(), detail: `修改帳號資料，所屬單位：${orgName}` })
+      setDbUsers(await getAllUsers())
+      closeEdit()
+    } catch (err) {
+      setEditError('修改失敗：' + err.message)
     }
   }
 
@@ -199,6 +265,101 @@ export default function StaffManagement() {
         </form>
       )}
 
+      {/* 編輯表單 */}
+      {editTarget && (
+        <form onSubmit={handleEdit} className="bg-white rounded-xl border border-primary/30 shadow-sm p-5 space-y-4">
+          <h3 className="font-semibold text-gray-700">編輯帳號：{editTarget.name}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">姓名 *</label>
+              <input required value={editForm.name}
+                onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">角色 *</label>
+              <select value={editForm.role} onChange={e => setEditForm(p => ({ ...p, role: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="關懷站專員">關懷站專員</option>
+                <option value="管理者">管理者</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">所屬單位 *</label>
+              <select required value={editForm.org_id}
+                onChange={e => setEditForm(p => ({ ...p, org_id: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                <option value="">— 請選擇 —</option>
+                {orgs.map(o => <option key={o.id} value={o.id}>{o.short_name || o.name}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Google Email</label>
+              <input type="email" value={editForm.google_email}
+                onChange={e => setEditForm(p => ({ ...p, google_email: e.target.value }))}
+                placeholder="選填"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+
+            {editForm.role !== '關懷站專員' && (
+              <>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">帳號</label>
+                  <input value={editForm.username}
+                    onChange={e => setEditForm(p => ({ ...p, username: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">新密碼（留空不更改）</label>
+                  <input type="password" value={editForm.password}
+                    onChange={e => setEditForm(p => ({ ...p, password: e.target.value }))}
+                    placeholder="留空則不修改"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+              </>
+            )}
+          </div>
+
+          {editError && <p className="text-sm text-red-500">{editError}</p>}
+          <div className="flex gap-3">
+            <button type="submit" className="px-5 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light">儲存修改</button>
+            <button type="button" onClick={closeEdit}
+              className="px-5 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">取消</button>
+          </div>
+        </form>
+      )}
+
+      {/* 篩選列（超級管理者專屬）*/}
+      {isSuperAdmin && (
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              value={filterName}
+              onChange={e => setFilterName(e.target.value)}
+              placeholder="搜尋姓名 / 帳號 / Email..."
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+            />
+          </div>
+          <select value={filterOrg} onChange={e => setFilterOrg(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-white">
+            <option value="">全部單位</option>
+            {orgs.map(o => <option key={o.id} value={o.id}>{o.short_name || o.name}</option>)}
+          </select>
+          {(filterName || filterOrg) && (
+            <button onClick={() => { setFilterName(''); setFilterOrg('') }}
+              className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded border border-gray-200 hover:bg-gray-50">
+              清除篩選
+            </button>
+          )}
+          <span className="text-sm text-gray-400">顯示 {allAccounts.length} 筆</span>
+        </div>
+      )}
+
       {/* 帳號列表 */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
@@ -214,9 +375,11 @@ export default function StaffManagement() {
           </thead>
           <tbody>
             {allAccounts.map(u => {
-              const isSelf      = u.id === user?.id && !u._superadmin
-              const isProtected = u._superadmin || u.role === '管理者'
-              const canDelete   = !isSelf && !isProtected
+              const isSelf    = u.id === user?.id && !u._superadmin
+              const canDelete = u._superadmin ? false
+                : isSuperAdmin ? true
+                : (!isSelf && u.role !== '管理者')
+              const canEdit   = !u._superadmin && isSuperAdmin
               const orgName     = u.org_id
                 ? (orgs.find(o => o.id === u.org_id)?.short_name ?? `單位 ${u.org_id}`)
                 : null
@@ -263,14 +426,22 @@ export default function StaffManagement() {
                     }
                   </td>
                   <td className="py-3 px-4 text-right">
-                    {canDelete ? (
-                      <button onClick={() => setDeleteTarget(u)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    ) : (
-                      <span className="text-xs text-gray-300 px-3">—</span>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {canEdit && (
+                        <button onClick={() => openEdit(u)}
+                          className="p-1.5 text-gray-400 hover:text-primary hover:bg-green-50 rounded-lg transition-colors">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canDelete ? (
+                        <button onClick={() => setDeleteTarget(u)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        !canEdit && <span className="text-xs text-gray-300 px-3">—</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )

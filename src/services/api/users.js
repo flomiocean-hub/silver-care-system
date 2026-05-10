@@ -51,6 +51,15 @@ export async function createUser({ name, role, org_id, username, password, googl
   if (error) throw error
 }
 
+export async function updateUser(id, { name, role, org_id, username, password, google_email }) {
+  const payload = { name, role, org_id }
+  payload.username     = username     || null
+  payload.google_email = google_email ? google_email.toLowerCase() : null
+  if (password) payload.password = password
+  const { error } = await supabase.from('user_accounts').update(payload).eq('id', id)
+  if (error) throw error
+}
+
 export async function deleteUser(id) {
   const { error } = await supabase.from('user_accounts').delete().eq('id', id)
   if (error) throw error
