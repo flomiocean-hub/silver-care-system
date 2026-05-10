@@ -42,7 +42,11 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user?.email) {
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.email) {
+          // Don't override an active password-based session
+          const stored = loadUser()
+          if (stored && !stored.google_email) return
+
           const record = await findUserByEmail(session.user.email)
           if (record) {
             applySession(buildUserFromRecord(record), record.organizations)

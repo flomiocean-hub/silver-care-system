@@ -3,22 +3,34 @@ import { supabase } from '../supabaseClient'
 const SELECT = '*, organizations(id, name, short_name)'
 
 export async function findUserByCredentials(username, password) {
-  const { data } = await supabase
-    .from('user_accounts')
-    .select(SELECT)
-    .eq('username', username)
-    .eq('password', password)
-    .single()
-  return data ?? null
+  try {
+    const { data, error } = await supabase
+      .from('user_accounts')
+      .select(SELECT)
+      .eq('username', username)
+      .eq('password', password)
+      .single()
+    if (error && error.code !== 'PGRST116') console.error('findUserByCredentials:', error)
+    return data ?? null
+  } catch (err) {
+    console.error('findUserByCredentials network error:', err)
+    return null
+  }
 }
 
 export async function findUserByEmail(email) {
-  const { data } = await supabase
-    .from('user_accounts')
-    .select(SELECT)
-    .eq('google_email', email.toLowerCase())
-    .single()
-  return data ?? null
+  try {
+    const { data, error } = await supabase
+      .from('user_accounts')
+      .select(SELECT)
+      .eq('google_email', email.toLowerCase())
+      .single()
+    if (error && error.code !== 'PGRST116') console.error('findUserByEmail:', error)
+    return data ?? null
+  } catch (err) {
+    console.error('findUserByEmail network error:', err)
+    return null
+  }
 }
 
 export async function getAllUsers() {

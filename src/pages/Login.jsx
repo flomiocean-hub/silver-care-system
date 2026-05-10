@@ -21,26 +21,33 @@ export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false)
 
   useEffect(() => {
-    getActiveOrganizations().then(list => {
-      setOrgs(list)
-      const remembered = loadOrg()
-      if (remembered) {
-        const match = list.find(o => o.id === remembered.id)
-        if (match) setSelectedOrg(match)
-      } else if (list.length === 1) {
-        setSelectedOrg(list[0])
-      }
-      setOrgLoading(false)
-    })
+    getActiveOrganizations()
+      .then(list => {
+        setOrgs(list)
+        const remembered = loadOrg()
+        if (remembered) {
+          const match = list.find(o => o.id === remembered.id)
+          if (match) setSelectedOrg(match)
+        } else if (list.length === 1) {
+          setSelectedOrg(list[0])
+        }
+      })
+      .catch(() => {})
+      .finally(() => setOrgLoading(false))
   }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const result = await login(username.trim(), password)
-    setLoading(false)
-    if (!result.ok) setError('帳號或密碼錯誤，請再確認')
+    try {
+      const result = await login(username.trim(), password)
+      if (!result.ok) setError('帳號或密碼錯誤，請再確認')
+    } catch {
+      setError('連線失敗，請稍後再試')
+    } finally {
+      setLoading(false)
+    }
   }
 
   function handleOrgConfirm() {
