@@ -39,6 +39,11 @@ export async function updateEnrollmentMaterialPaid(enrollmentId, materialPaid) {
   if (error) throw error
 }
 
+export async function updateCourse(id, updates) {
+  const { error } = await supabase.from('courses').update(updates).eq('id', id)
+  if (error) throw error
+}
+
 export async function deleteCourse(courseId) {
   await supabase.from('enrollments').delete().eq('course_id', courseId)
   const { error } = await supabase.from('courses').delete().eq('id', courseId)

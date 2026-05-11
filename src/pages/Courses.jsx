@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X, CalendarDays, Archive } from 'lucide-react'
+import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X, CalendarDays, Archive, Pencil } from 'lucide-react'
 import { calcProRatedFee } from '../utils/billing'
 import { isExpired } from '../utils/courseUtils'
 import CourseCalendar from '../components/CourseCalendar'
@@ -8,11 +8,14 @@ import ExpiredCourseView from '../components/ExpiredCourseView'
 import { useAudit } from '../contexts/AuditContext'
 import { useAuth } from '../contexts/AuthContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
-import { getCourses, addCourse, getEnrollments, addEnrollment, updateCourseCount, deleteCourse, deleteEnrollment, updateEnrollmentPayment, updateEnrollmentMaterialPaid } from '../services/api/courses'
+import { getCourses, addCourse, updateCourse, getEnrollments, addEnrollment, updateCourseCount, deleteCourse, deleteEnrollment, updateEnrollmentPayment, updateEnrollmentMaterialPaid } from '../services/api/courses'
+
+const DAY_OPTIONS  = ['週一','週二','週三','週四','週五','週六','週日']
+const TIME_OPTIONS = ['上午','下午']
 
 const emptyForm = {
   name: '', session: 'A', instructor: '', description: '', expected_outcome: '',
-  day: '週一', time: '09:00', start_date: '', capacity: 25,
+  day: '週一', time: '上午', start_date: '', capacity: 25,
   total_fee: 0, total_sessions: 4, materials_fee: 0,
 }
 
@@ -39,6 +42,9 @@ export default function Courses() {
   const [enrollPaid, setEnrollPaid] = useState('')
   const [adminOverride, setAdminOverride] = useState(false)
   const [view, setView] = useState('list') // 'list' | 'calendar' | 'expired'
+  const [editTarget, setEditTarget] = useState(null)
+  const [editForm, setEditForm]     = useState({})
+  const [editSaving, setEditSaving] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -211,6 +217,53 @@ export default function Courses() {
     }
   }
 
+  function openEdit(course) {
+    setEditTarget(course)
+    setEditForm({
+      name:             course.name        ?? '',
+      session:          course.session     ?? 'A',
+      instructor:       course.instructor  ?? '',
+      description:      course.description ?? '',
+      expected_outcome: course.expected_outcome ?? '',
+      day:              course.day        ?? '週一',
+      time:             course.time       ?? '上午',
+      start_date:       course.start_date ?? '',
+      capacity:         course.capacity   ?? 25,
+      total_sessions:   course.total_sessions ?? 4,
+      total_fee:        course.total_fee  ?? 0,
+      materials_fee:    course.materials_fee ?? 0,
+    })
+  }
+
+  async function handleSaveEdit(e) {
+    e.preventDefault()
+    setEditSaving(true)
+    try {
+      const updates = {
+        name:             editForm.name,
+        session:          editForm.session || 'A',
+        instructor:       editForm.instructor || '',
+        description:      editForm.description || '',
+        expected_outcome: editForm.expected_outcome || '',
+        day:              editForm.day || '',
+        time:             editForm.time || '',
+        start_date:       editForm.start_date || null,
+        capacity:         Number(editForm.capacity) || 25,
+        total_sessions:   Number(editForm.total_sessions) || 4,
+        total_fee:        Number(editForm.total_fee) || 0,
+        materials_fee:    Number(editForm.materials_fee) || 0,
+      }
+      await updateCourse(editTarget.id, updates)
+      addLog({ action: '修改', module: '課程管理', target: editForm.name, detail: `更新課程資訊` })
+      setEditTarget(null)
+      await load()
+    } catch (err) {
+      alert(`儲存失敗：${err.message}`)
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   function exportCSV() {
     const rows = [['學員', '課程', '堂次', '應繳', '已繳', '差額', '後補']]
     enrollments.forEach(e => {
@@ -239,6 +292,135 @@ export default function Courses() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      {/* 編輯課程 Modal */}
+      {editTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4 py-6 overflow-y-auto">
+          <form onSubmit={handleSaveEdit}
+            className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-lg space-y-4 my-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-700">編輯課程</h3>
+              <button type="button" onClick={() => setEditTarget(null)}
+                className="p-1 text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {/* 課程名稱 */}
+              <div className="col-span-2">
+                <label className="text-xs text-gray-500 block mb-1">課程名稱 *</label>
+                <input required value={editForm.name}
+                  onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
+              {/* 授課老師 */}
+              <div className="col-span-2">
+                <label className="text-xs text-gray-500 block mb-1">授課老師</label>
+                <input value={editForm.instructor}
+                  onChange={e => setEditForm(p => ({ ...p, instructor: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
+              {/* A/B 場 */}
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">A/B 場</label>
+                <input value={editForm.session}
+                  onChange={e => setEditForm(p => ({ ...p, session: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
+              {/* 開課日期 */}
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">開課日期</label>
+                <input type="date" value={editForm.start_date}
+                  onChange={e => setEditForm(p => ({ ...p, start_date: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
+              {/* 上課日 */}
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">上課日</label>
+                <select value={editForm.day}
+                  onChange={e => setEditForm(p => ({ ...p, day: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-white">
+                  {DAY_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              {/* 時間 */}
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">時間</label>
+                <select value={editForm.time}
+                  onChange={e => setEditForm(p => ({ ...p, time: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-white">
+                  {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              {/* 名額上限 */}
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">名額上限</label>
+                <input type="number" min={1} value={editForm.capacity}
+                  onChange={e => setEditForm(p => ({ ...p, capacity: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
+              {/* 總堂數 */}
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">總堂數</label>
+                <input type="number" min={1} value={editForm.total_sessions}
+                  onChange={e => setEditForm(p => ({ ...p, total_sessions: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
+              {/* 報名費 */}
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">每人報名費（元）</label>
+                <input type="number" min={0} value={editForm.total_fee}
+                  onChange={e => setEditForm(p => ({ ...p, total_fee: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
+              {/* 材料費 */}
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">每人材料費（元）</label>
+                <input type="number" min={0} value={editForm.materials_fee}
+                  onChange={e => setEditForm(p => ({ ...p, materials_fee: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
+              {/* 課程說明 */}
+              <div className="col-span-2">
+                <label className="text-xs text-gray-500 block mb-1">課程內容說明</label>
+                <textarea rows={2} value={editForm.description}
+                  onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+
+              {/* 預期成效 */}
+              <div className="col-span-2">
+                <label className="text-xs text-gray-500 block mb-1">預期參與成效</label>
+                <textarea rows={2} value={editForm.expected_outcome}
+                  onChange={e => setEditForm(p => ({ ...p, expected_outcome: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button type="submit" disabled={editSaving}
+                className="flex-1 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light disabled:opacity-60 flex items-center justify-center gap-2">
+                {editSaving && <Loader2 className="w-4 h-4 animate-spin" />} 儲存變更
+              </button>
+              <button type="button" onClick={() => setEditTarget(null)}
+                className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">
+                取消
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {deleteTarget && (
         <ConfirmDialog
           title={`確定要刪除「${deleteTarget.name}」嗎？`}
@@ -438,8 +620,6 @@ export default function Courses() {
               { key: 'name', label: '課程名稱 *', req: true },
               { key: 'instructor', label: '授課老師 *', req: true },
               { key: 'session', label: 'A/B 場', req: false },
-              { key: 'day', label: '上課日', req: false },
-              { key: 'time', label: '時間', req: false, type: 'time' },
               { key: 'start_date', label: '開課日期', req: false, type: 'date' },
               { key: 'capacity', label: '名額上限', req: false, type: 'number' },
               { key: 'total_sessions', label: '總堂數', req: false, type: 'number' },
@@ -453,6 +633,20 @@ export default function Courses() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             ))}
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">上課日</label>
+              <select value={form.day} onChange={e => setForm(p => ({ ...p, day: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-white">
+                {DAY_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">時間</label>
+              <select value={form.time} onChange={e => setForm(p => ({ ...p, time: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-white">
+                {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
             <div className="col-span-2">
               <label className="text-xs text-gray-500 block mb-1">課程內容說明</label>
               <textarea rows={2} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
@@ -523,10 +717,16 @@ export default function Courses() {
                     <p className="text-xs text-gray-400 mt-1">{c.total_fee} 元 / {c.total_sessions} 堂</p>
                   </div>
                   {isAdmin && (
-                    <button onClick={() => setDeleteTarget(c)}
-                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex gap-1">
+                      <button onClick={() => openEdit(c)}
+                        className="p-1.5 text-gray-400 hover:text-primary hover:bg-green-50 rounded-lg transition-colors">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setDeleteTarget(c)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
