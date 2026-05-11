@@ -90,6 +90,46 @@ ${context}
   }
 }
 
+// ── 課程說明 AI 建議 ──────────────────────────────────────────
+export async function askGeminiCourseDescription(name, instructor) {
+  if (!model) return null
+  const prompt = `你是台灣社區關懷據點的課程規劃助理。
+請根據課程名稱與授課老師，用繁體中文撰寫課程內容說明。
+要求：100字以內、語氣親切、適合長者閱讀、說明課程內容與方式。
+
+課程名稱：${name}
+授課老師：${instructor || '未提供'}
+
+只回傳說明文字，不需要其他格式或標題。`
+  try {
+    const result = await model.generateContent(prompt)
+    return result.response.text().trim()
+  } catch (err) {
+    console.error('Gemini course description error:', err)
+    return null
+  }
+}
+
+export async function askGeminiCourseOutcome(description) {
+  if (!model) return null
+  const prompt = `你是台灣社區關懷據點的課程規劃助理。
+請根據以下課程內容說明，撰寫預期參與成效。
+要求：條列 2～3 點、每點 25 字以內、著重長者身心健康效益、用「• 」開頭。
+
+課程內容說明：${description}
+
+只回傳條列文字，範例格式：
+• 促進長者手部靈活度與協調能力
+• 增進社交互動，減緩孤獨感`
+  try {
+    const result = await model.generateContent(prompt)
+    return result.response.text().trim()
+  } catch (err) {
+    console.error('Gemini course outcome error:', err)
+    return null
+  }
+}
+
 // ── OCR 血壓計辨識 ────────────────────────────────────────────
 export async function askGeminiOCR(base64, mimeType = 'image/jpeg') {
   if (!model) return null

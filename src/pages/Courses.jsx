@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X, CalendarDays, Archive, Pencil } from 'lucide-react'
+import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X, CalendarDays, Archive, Pencil, Sparkles } from 'lucide-react'
 import { calcProRatedFee } from '../utils/billing'
 import { isExpired } from '../utils/courseUtils'
 import CourseCalendar from '../components/CourseCalendar'
 import ExpiredCourseView from '../components/ExpiredCourseView'
+import { askGeminiCourseDescription, askGeminiCourseOutcome, hasGemini } from '../services/geminiService'
 import { useAudit } from '../contexts/AuditContext'
 import { useAuth } from '../contexts/AuthContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
@@ -42,6 +43,8 @@ export default function Courses() {
   const [enrollPaid, setEnrollPaid] = useState('')
   const [adminOverride, setAdminOverride] = useState(false)
   const [view, setView] = useState('list') // 'list' | 'calendar' | 'expired'
+  const [aiDescLoading, setAiDescLoading]       = useState(false)
+  const [aiOutcomeLoading, setAiOutcomeLoading] = useState(false)
   const [editTarget, setEditTarget] = useState(null)
   const [editForm, setEditForm]     = useState({})
   const [editSaving, setEditSaving] = useState(false)
@@ -215,6 +218,22 @@ export default function Courses() {
     } catch (err) {
       alert(`刪除失敗：${err.message}`)
     }
+  }
+
+  async function handleAIDesc(name, instructor, setter) {
+    if (!name.trim()) return
+    setAiDescLoading(true)
+    const text = await askGeminiCourseDescription(name, instructor)
+    if (text) setter(p => ({ ...p, description: text }))
+    setAiDescLoading(false)
+  }
+
+  async function handleAIOutcome(description, setter) {
+    if (!description.trim()) return
+    setAiOutcomeLoading(true)
+    const text = await askGeminiCourseOutcome(description)
+    if (text) setter(p => ({ ...p, expected_outcome: text }))
+    setAiOutcomeLoading(false)
   }
 
   function openEdit(course) {
@@ -392,7 +411,18 @@ export default function Courses() {
 
               {/* 課程說明 */}
               <div className="col-span-2">
-                <label className="text-xs text-gray-500 block mb-1">課程內容說明</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-500">課程內容說明</label>
+                  {hasGemini && (
+                    <button type="button"
+                      onClick={() => handleAIDesc(editForm.name, editForm.instructor, setEditForm)}
+                      disabled={!editForm.name?.trim() || aiDescLoading}
+                      className="text-xs px-2 py-0.5 rounded-lg flex items-center gap-1 transition-colors disabled:text-gray-300 disabled:cursor-not-allowed text-purple-600 bg-purple-50 hover:bg-purple-100">
+                      {aiDescLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      AI 建議
+                    </button>
+                  )}
+                </div>
                 <textarea rows={2} value={editForm.description}
                   onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
@@ -400,7 +430,18 @@ export default function Courses() {
 
               {/* 預期成效 */}
               <div className="col-span-2">
-                <label className="text-xs text-gray-500 block mb-1">預期參與成效</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-500">預期參與成效</label>
+                  {hasGemini && (
+                    <button type="button"
+                      onClick={() => handleAIOutcome(editForm.description, setEditForm)}
+                      disabled={!editForm.description?.trim() || aiOutcomeLoading}
+                      className="text-xs px-2 py-0.5 rounded-lg flex items-center gap-1 transition-colors disabled:text-gray-300 disabled:cursor-not-allowed text-purple-600 bg-purple-50 hover:bg-purple-100">
+                      {aiOutcomeLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      AI 建議
+                    </button>
+                  )}
+                </div>
                 <textarea rows={2} value={editForm.expected_outcome}
                   onChange={e => setEditForm(p => ({ ...p, expected_outcome: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
@@ -648,12 +689,34 @@ export default function Courses() {
               </select>
             </div>
             <div className="col-span-2">
-              <label className="text-xs text-gray-500 block mb-1">課程內容說明</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-gray-500">課程內容說明</label>
+                {hasGemini && (
+                  <button type="button"
+                    onClick={() => handleAIDesc(form.name, form.instructor, setForm)}
+                    disabled={!form.name.trim() || aiDescLoading}
+                    className="text-xs px-2 py-0.5 rounded-lg flex items-center gap-1 transition-colors disabled:text-gray-300 disabled:cursor-not-allowed text-purple-600 bg-purple-50 hover:bg-purple-100">
+                    {aiDescLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    AI 建議
+                  </button>
+                )}
+              </div>
               <textarea rows={2} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div className="col-span-2">
-              <label className="text-xs text-gray-500 block mb-1">預期參與成效</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-gray-500">預期參與成效</label>
+                {hasGemini && (
+                  <button type="button"
+                    onClick={() => handleAIOutcome(form.description, setForm)}
+                    disabled={!form.description.trim() || aiOutcomeLoading}
+                    className="text-xs px-2 py-0.5 rounded-lg flex items-center gap-1 transition-colors disabled:text-gray-300 disabled:cursor-not-allowed text-purple-600 bg-purple-50 hover:bg-purple-100">
+                    {aiOutcomeLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    AI 建議
+                  </button>
+                )}
+              </div>
               <textarea rows={2} value={form.expected_outcome} onChange={e => setForm(p => ({ ...p, expected_outcome: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>

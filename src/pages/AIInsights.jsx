@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Brain, AlertCircle, Activity, MessageSquare, Send, Sparkles, Camera, Loader2 } from 'lucide-react'
+import { Brain, AlertCircle, Activity, MessageSquare, Send, Loader2 } from 'lucide-react'
 import { HEALTH_NORMS } from '../services/mockData'
 import HealthTrendChart from '../components/dashboard/HealthTrendChart'
 import { getRiskLevel, getBPStatus, checkWeightAlert } from '../utils/riskScoring'
-import { askGeminiNLP, getPollinationsAvatarUrl, hasGemini } from '../services/geminiService'
+import { askGeminiNLP, hasGemini } from '../services/geminiService'
 import { getMembers } from '../services/api/members'
 import { getHealthRecords } from '../services/api/health'
 import { getFinanceRecords } from '../services/api/finance'
@@ -31,8 +31,6 @@ const QUICK_QUERIES = [
   ...(hasGemini ? ['哪些長者需要優先關注？', '這個月出席狀況如何？'] : []),
 ]
 
-const AVATAR_STYLES = ['🧑‍🦳 Q版水彩', '👴 像素風格', '👵 插畫風格', '🎨 油畫風格']
-
 function renderAIText(text) {
   return text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -48,10 +46,6 @@ export default function AIInsights() {
   const [input, setInput]           = useState('')
   const [aiLoading, setAiLoading]   = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState(null)
-  const [avatarFile, setAvatarFile] = useState(null)
-  const [avatarStyle, setAvatarStyle] = useState(AVATAR_STYLES[0])
-  const [avatarResult, setAvatarResult] = useState(null)
-  const [generating, setGenerating] = useState(false)
   const chatEndRef = useRef(null)
 
   const load = useCallback(async () => {
@@ -96,23 +90,6 @@ export default function AIInsights() {
 
     setMessages(p => [...p, { role: 'ai', text: reply }])
     setAiLoading(false)
-  }
-
-  function handleGenAvatar() {
-    if (!avatarFile) return
-    setGenerating(true)
-    setAvatarResult(null)
-    const url = getPollinationsAvatarUrl(avatarStyle)
-    const img = new Image()
-    img.onload = () => {
-      setAvatarResult({ style: avatarStyle, emoji: avatarStyle.split(' ')[0], imageUrl: url })
-      setGenerating(false)
-    }
-    img.onerror = () => {
-      setAvatarResult({ style: avatarStyle, emoji: avatarStyle.split(' ')[0], imageUrl: null })
-      setGenerating(false)
-    }
-    img.src = url
   }
 
   if (loading) {
@@ -277,56 +254,6 @@ export default function AIInsights() {
             <HealthTrendChart data={healthData} memberId={selectedMember.id} memberName={selectedMember.name} />
           )}
 
-          <div className="bg-white rounded-xl border border-purple-200 shadow-sm p-5">
-            <h3 className="text-sm font-semibold text-purple-700 mb-1 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" /> AI 轉 Q 版小圖（會員專屬）
-            </h3>
-            <p className="text-xs text-gray-400 mb-3">
-              上傳長者照片，AI 生成專屬 Q 版形象
-              <span className="ml-1 text-purple-400">· Powered by Pollinations.ai</span>
-            </p>
-            <div className="flex gap-2 mb-3 flex-wrap">
-              {AVATAR_STYLES.map(s => (
-                <button key={s} onClick={() => { setAvatarStyle(s); setAvatarResult(null) }}
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                    avatarStyle === s ? 'bg-purple-100 text-purple-700 border-purple-300' : 'bg-gray-50 text-gray-500 border-gray-200'
-                  }`}>
-                  {s}
-                </button>
-              ))}
-            </div>
-            <label className="block border-2 border-dashed border-purple-200 rounded-xl p-4 text-center cursor-pointer hover:border-purple-400 transition-colors mb-3">
-              <Camera className="w-6 h-6 text-purple-300 mx-auto mb-1" />
-              <p className="text-xs text-gray-400">{avatarFile ? `已選擇：${avatarFile}` : '點擊上傳長者照片'}</p>
-              <input type="file" accept="image/*" className="hidden"
-                onChange={e => { if (e.target.files[0]) { setAvatarFile(e.target.files[0].name); setAvatarResult(null) } }} />
-            </label>
-            <button onClick={handleGenAvatar} disabled={!avatarFile || generating}
-              className={`w-full py-2 rounded-xl text-sm font-medium transition-colors ${
-                !avatarFile ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : generating ? 'bg-purple-100 text-purple-400 cursor-wait'
-                : 'bg-purple-600 text-white hover:bg-purple-700'
-              }`}>
-              {generating ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" /> AI 生成中…
-                </span>
-              ) : '✨ 生成 Q 版小圖'}
-            </button>
-
-            {avatarResult && (
-              <div className="mt-3 p-4 bg-purple-50 border border-purple-200 rounded-xl text-center">
-                {avatarResult.imageUrl ? (
-                  <img src={avatarResult.imageUrl} alt="AI Q版頭像"
-                    className="w-24 h-24 rounded-2xl mx-auto mb-2 object-cover shadow-md" />
-                ) : (
-                  <div className="text-5xl mb-2">{avatarResult.emoji}</div>
-                )}
-                <p className="text-sm font-medium text-purple-700">Q 版生成完成！（{avatarResult.style}）</p>
-                <p className="text-xs text-purple-500 mt-1">長者可設為個人頭像，登入即可查看衛教資訊</p>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>
