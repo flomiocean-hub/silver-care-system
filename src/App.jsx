@@ -16,6 +16,9 @@ import AuditLog from './pages/AuditLog'
 import StaffManagement from './pages/StaffManagement'
 import CareStations from './pages/CareStations'
 import OrgQuery from './pages/OrgQuery'
+import SetupCredentials from './pages/SetupCredentials'
+import Schedule from './pages/Schedule'
+import ExpiredCourses from './pages/ExpiredCourses'
 
 function AdminOnly({ children }) {
   const { isAdmin } = useAuth()
@@ -28,8 +31,9 @@ function SuperAdminOnly({ children }) {
 }
 
 function AdminShell() {
-  const { user } = useAuth()
+  const { user, pendingSetup } = useAuth()
   if (!user) return <Login />
+  if (pendingSetup) return <SetupCredentials />
 
   return (
     <AuditProvider>
@@ -47,6 +51,8 @@ function AdminShell() {
               <Route path="/ai-insights" element={<AIInsights />} />
               <Route path="/logs"        element={<AuditLog />} />
               <Route path="/staff"         element={<AdminOnly><StaffManagement /></AdminOnly>} />
+              <Route path="/schedule"         element={<Schedule />} />
+              <Route path="/expired-courses" element={<ExpiredCourses />} />
               <Route path="/care-stations" element={<SuperAdminOnly><CareStations /></SuperAdminOnly>} />
               <Route path="/org-query"     element={<OrgQuery />} />
             </Routes>

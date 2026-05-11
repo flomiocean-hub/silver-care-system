@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
-import { ShieldCheck, UserPlus, Trash2, Lock, User, Building2, Mail, Pencil, Search } from 'lucide-react'
+import { ShieldCheck, UserPlus, Trash2, Lock, User, Building2, Mail, Pencil, Search, RotateCcw, KeyRound } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useAudit } from '../contexts/AuditContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
 import { getActiveOrganizations } from '../services/api/organizations'
-import { getAllUsers, createUser, updateUser, deleteUser } from '../services/api/users'
+import { getAllUsers, createUser, updateUser, deleteUser, resetUserCredentials, setUserCredentials } from '../services/api/users'
 
 const ROLE_STYLE = {
   '超級管理者': 'bg-purple-100 text-purple-700',
@@ -18,26 +18,30 @@ const SUPERADMIN_ROW = {
 }
 
 export default function StaffManagement() {
-  const { user, isAdmin, isSuperAdmin } = useAuth()
+  const { user, isAdmin, isSuperAdmin, updateLocalUser } = useAuth()
   const { addLog } = useAudit()
 
   const [orgs, setOrgs]                 = useState([])
   const [dbUsers, setDbUsers]           = useState([])
   const [showForm, setShowForm]         = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [resetTarget, setResetTarget]   = useState(null)
   const [editTarget, setEditTarget]     = useState(null)
   const [formError, setFormError]       = useState('')
   const [editError, setEditError]       = useState('')
   const [form, setForm]                 = useState({
-    name: '', role: '關懷站專員', org_id: '',
-    google_email: '', username: '', password: '',
+    name: '', role: '關懷站專員', org_id: '', google_email: '',
   })
   const [editForm, setEditForm] = useState({
     name: '', role: '', org_id: '',
     google_email: '', username: '', password: '',
   })
-  const [filterName, setFilterName]   = useState('')
-  const [filterOrg,  setFilterOrg]    = useState('')
+  const [filterName, setFilterName]         = useState('')
+  const [filterOrg,  setFilterOrg]          = useState('')
+  const [showSelfCredForm, setShowSelfCredForm] = useState(false)
+  const [selfCredForm, setSelfCredForm]         = useState({ username: '', newPw: '', confirmPw: '' })
+  const [selfCredError, setSelfCredError]       = useState('')
+  const [selfCredSaving, setSelfCredSaving]     = useState(false)
 
   useEffect(() => {
     getActiveOrganizations().then(setOrgs)
@@ -54,7 +58,6 @@ export default function StaffManagement() {
     )
   }
 
-  // 組合顯示清單
   const allAccounts = useMemo(() => {
     const base = [
       ...(isSuperAdmin ? [SUPERADMIN_ROW] : []),
@@ -74,7 +77,7 @@ export default function StaffManagement() {
   }, [dbUsers, isSuperAdmin, filterName, filterOrg])
 
   function resetForm() {
-    setForm({ name: '', role: '關懷站專員', org_id: '', google_email: '', username: '', password: '' })
+    setForm({ name: '', role: '關懷站專員', org_id: '', google_email: '' })
     setFormError('')
   }
 
@@ -90,11 +93,20 @@ export default function StaffManagement() {
     })
     setEditError('')
     setShowForm(false)
+    setShowSelfCredForm(false)
   }
 
   function closeEdit() {
     setEditTarget(null)
     setEditError('')
+  }
+
+  function openSelfCredForm() {
+    setSelfCredForm({ username: user.username ?? '', newPw: '', confirmPw: '' })
+    setSelfCredError('')
+    setShowSelfCredForm(true)
+    setShowForm(false)
+    setEditTarget(null)
   }
 
   async function handleAdd(e) {
@@ -103,19 +115,12 @@ export default function StaffManagement() {
     const orgId = isSuperAdmin ? Number(form.org_id) : user.org_id
     if (!orgId) { setFormError('請選擇所屬單位'); return }
 
+    const email = form.google_email.trim().toLowerCase()
+    if (!email.includes('@')) { setFormError('請輸入有效的 Google Email'); return }
+    if (dbUsers.some(u => u.google_email === email)) { setFormError('此 Email 已存在'); return }
+
     try {
-      if (form.role === '關懷站專員') {
-        const email = form.google_email.trim().toLowerCase()
-        if (!email.includes('@')) { setFormError('請輸入有效的 Google Email'); return }
-        if (dbUsers.some(u => u.google_email === email)) { setFormError('此 Email 已存在'); return }
-        await createUser({ name: form.name.trim(), role: '關懷站專員', org_id: orgId, google_email: email })
-      } else {
-        if (!form.username.trim() || !form.password) { setFormError('請填寫帳號與密碼'); return }
-        if (dbUsers.some(u => u.username === form.username.trim())) { setFormError('此帳號已存在'); return }
-        const payload = { name: form.name.trim(), role: form.role, org_id: orgId, username: form.username.trim(), password: form.password }
-        if (form.google_email.trim()) payload.google_email = form.google_email.trim().toLowerCase()
-        await createUser(payload)
-      }
+      await createUser({ name: form.name.trim(), role: form.role, org_id: orgId, google_email: email })
       const orgName = orgs.find(o => o.id === orgId)?.name ?? ''
       addLog({ action: '新增', module: '帳號管理', target: form.name.trim(), detail: `新增${form.role}帳號，所屬單位：${orgName}` })
       setDbUsers(await getAllUsers())
@@ -131,9 +136,6 @@ export default function StaffManagement() {
     setEditError('')
     const orgId = Number(editForm.org_id) || null
     if (!orgId) { setEditError('請選擇所屬單位'); return }
-    if (editForm.role !== '關懷站專員' && !editForm.username.trim()) {
-      setEditError('管理者必須填寫帳號'); return
-    }
     try {
       await updateUser(editTarget.id, {
         name:         editForm.name.trim(),
@@ -160,6 +162,42 @@ export default function StaffManagement() {
     setDeleteTarget(null)
   }
 
+  async function confirmReset() {
+    if (!resetTarget) return
+    try {
+      await resetUserCredentials(resetTarget.id)
+      addLog({ action: '重置', module: '帳號管理', target: resetTarget.name, detail: '重置帳號密碼，回復為純 Google 登入' })
+      setDbUsers(await getAllUsers())
+    } catch (err) {
+      console.error('重置失敗:', err)
+    } finally {
+      setResetTarget(null)
+    }
+  }
+
+  async function handleSelfCredentials(e) {
+    e.preventDefault()
+    setSelfCredError('')
+    if (!selfCredForm.username.trim()) { setSelfCredError('請輸入帳號'); return }
+    if (selfCredForm.newPw.length < 6) { setSelfCredError('密碼至少 6 個字元'); return }
+    if (selfCredForm.newPw !== selfCredForm.confirmPw) { setSelfCredError('兩次密碼不一致'); return }
+    const taken = dbUsers.some(u => u.username === selfCredForm.username.trim() && u.id !== user.id)
+    if (taken) { setSelfCredError('此帳號已被使用，請換一個'); return }
+    setSelfCredSaving(true)
+    try {
+      await setUserCredentials(user.id, selfCredForm.username.trim(), selfCredForm.newPw)
+      updateLocalUser({ username: selfCredForm.username.trim() })
+      addLog({ action: '修改', module: '帳號管理', target: user.name, detail: '設定／修改帳號密碼' })
+      setDbUsers(await getAllUsers())
+      setShowSelfCredForm(false)
+      setSelfCredForm({ username: '', newPw: '', confirmPw: '' })
+    } catch (err) {
+      setSelfCredError('設定失敗：' + err.message)
+    } finally {
+      setSelfCredSaving(false)
+    }
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {deleteTarget && (
@@ -170,6 +208,14 @@ export default function StaffManagement() {
           onCancel={() => setDeleteTarget(null)}
         />
       )}
+      {resetTarget && (
+        <ConfirmDialog
+          title={`確定要重置「${resetTarget.name}」的帳號密碼嗎？`}
+          message="重置後該帳號將回復為純 Google 登入，原有帳號密碼將被清除。"
+          onConfirm={confirmReset}
+          onCancel={() => setResetTarget(null)}
+        />
+      )}
 
       <div className="flex items-center justify-between">
         <div>
@@ -178,7 +224,7 @@ export default function StaffManagement() {
           </h1>
           <p className="text-sm text-gray-400 mt-1">共 {allAccounts.length} 個帳號</p>
         </div>
-        <button onClick={() => { setShowForm(p => !p); resetForm() }}
+        <button onClick={() => { setShowForm(p => !p); resetForm(); setShowSelfCredForm(false); setEditTarget(null) }}
           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-light text-sm font-medium shadow-sm">
           <UserPlus className="w-4 h-4" /> 新增帳號
         </button>
@@ -203,8 +249,8 @@ export default function StaffManagement() {
                 <label className="text-xs text-gray-500 block mb-1">角色 *</label>
                 <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                  <option value="關懷站專員">關懷站專員（Google 登入）</option>
-                  <option value="管理者">管理者（Google 或帳密）</option>
+                  <option value="關懷站專員">關懷站專員</option>
+                  <option value="管理者">管理者</option>
                 </select>
               </div>
             )}
@@ -218,42 +264,25 @@ export default function StaffManagement() {
                   <option value="">— 請選擇 —</option>
                   {orgs.map(o => <option key={o.id} value={o.id}>{o.short_name || o.name}</option>)}
                 </select>
+                {(() => {
+                  const org = orgs.find(o => String(o.id) === form.org_id)
+                  const loc = [org?.city, org?.district].filter(Boolean).join(' · ')
+                  return loc ? <p className="text-xs text-gray-400 mt-1">{loc}</p> : null
+                })()}
               </div>
             )}
 
-            {/* Google Email（專員必填；管理者選填）*/}
-            <div className={form.role === '關懷站專員' ? 'md:col-span-2' : ''}>
-              <label className="text-xs text-gray-500 block mb-1">
-                Google Email {form.role === '關懷站專員' ? '*' : '（選填，填入後可用 Google 登入）'}
-              </label>
+            <div className={isSuperAdmin ? '' : 'md:col-span-2'}>
+              <label className="text-xs text-gray-500 block mb-1">Google Email *</label>
               <input
                 type="email"
-                required={form.role === '關懷站專員'}
+                required
                 value={form.google_email}
                 onChange={e => setForm(p => ({ ...p, google_email: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 placeholder="例：staff@gmail.com" />
+              <p className="text-xs text-gray-400 mt-1">建立後由使用者首次 Google 登入時自行設定帳號密碼</p>
             </div>
-
-            {/* 帳號密碼（僅管理者角色顯示）*/}
-            {form.role !== '關懷站專員' && (
-              <>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">帳號 *</label>
-                  <input required value={form.username}
-                    onChange={e => setForm(p => ({ ...p, username: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                    placeholder="例：admin02" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 block mb-1">密碼 *</label>
-                  <input required type="password" value={form.password}
-                    onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                    placeholder="設定初始密碼" />
-                </div>
-              </>
-            )}
           </div>
 
           {formError && <p className="text-sm text-red-500">{formError}</p>}
@@ -265,7 +294,7 @@ export default function StaffManagement() {
         </form>
       )}
 
-      {/* 編輯表單 */}
+      {/* 編輯表單（超級管理者） */}
       {editTarget && (
         <form onSubmit={handleEdit} className="bg-white rounded-xl border border-primary/30 shadow-sm p-5 space-y-4">
           <h3 className="font-semibold text-gray-700">編輯帳號：{editTarget.name}</h3>
@@ -333,6 +362,49 @@ export default function StaffManagement() {
         </form>
       )}
 
+      {/* 修改自己帳密表單（管理者） */}
+      {showSelfCredForm && (
+        <form onSubmit={handleSelfCredentials} className="bg-white rounded-xl border border-amber-300 shadow-sm p-5 space-y-4">
+          <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-amber-500" />
+            設定帳號密碼
+          </h3>
+          <p className="text-xs text-gray-500">設定後可使用帳號密碼登入，不依賴 Google 帳號。</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">帳號 *</label>
+              <input required value={selfCredForm.username}
+                onChange={e => setSelfCredForm(p => ({ ...p, username: e.target.value }))}
+                placeholder="設定登入帳號"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">新密碼 *</label>
+              <input required type="password" value={selfCredForm.newPw}
+                onChange={e => setSelfCredForm(p => ({ ...p, newPw: e.target.value }))}
+                placeholder="至少 6 個字元"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">確認密碼 *</label>
+              <input required type="password" value={selfCredForm.confirmPw}
+                onChange={e => setSelfCredForm(p => ({ ...p, confirmPw: e.target.value }))}
+                placeholder="再輸入一次"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+            </div>
+          </div>
+          {selfCredError && <p className="text-sm text-red-500">{selfCredError}</p>}
+          <div className="flex gap-3">
+            <button type="submit" disabled={selfCredSaving}
+              className="px-5 py-2 bg-amber-500 text-white rounded-xl text-sm font-medium hover:bg-amber-600 disabled:opacity-50">
+              {selfCredSaving ? '儲存中...' : '儲存'}
+            </button>
+            <button type="button" onClick={() => setShowSelfCredForm(false)}
+              className="px-5 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">取消</button>
+          </div>
+        </form>
+      )}
+
       {/* 篩選列（超級管理者專屬）*/}
       {isSuperAdmin && (
         <div className="flex flex-wrap gap-3 items-center">
@@ -375,15 +447,19 @@ export default function StaffManagement() {
           </thead>
           <tbody>
             {allAccounts.map(u => {
-              const isSelf    = u.id === user?.id && !u._superadmin
-              const canDelete = u._superadmin ? false
+              const isSelf             = u.id === user?.id && !u._superadmin
+              const canDelete          = u._superadmin ? false
                 : isSuperAdmin ? true
                 : (!isSelf && u.role !== '管理者')
-              const canEdit   = !u._superadmin && isSuperAdmin
-              const orgName     = u.org_id
+              const canEdit            = !u._superadmin && isSuperAdmin
+              const canReset           = !u._superadmin && u.username !== null && (
+                isSuperAdmin || (isAdmin && u.role === '關懷站專員' && !isSelf)
+              )
+              const canManageSelfCred  = isSelf && isAdmin && !isSuperAdmin
+              const orgName            = u.org_id
                 ? (orgs.find(o => o.id === u.org_id)?.short_name ?? `單位 ${u.org_id}`)
                 : null
-              const loginId     = u.google_email ?? u.username ?? '—'
+              const loginId            = u.google_email ?? u.username ?? '—'
 
               return (
                 <tr key={`${u._superadmin ? 'sa' : 'db'}-${u.id}`}
@@ -427,19 +503,36 @@ export default function StaffManagement() {
                   </td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {canManageSelfCred && (
+                        <button
+                          onClick={openSelfCredForm}
+                          title="設定帳號密碼"
+                          className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors">
+                          <KeyRound className="w-4 h-4" />
+                        </button>
+                      )}
                       {canEdit && (
                         <button onClick={() => openEdit(u)}
+                          title="編輯帳號"
                           className="p-1.5 text-gray-400 hover:text-primary hover:bg-green-50 rounded-lg transition-colors">
                           <Pencil className="w-4 h-4" />
                         </button>
                       )}
+                      {canReset && (
+                        <button onClick={() => setResetTarget(u)}
+                          title="重置帳號密碼"
+                          className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors">
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      )}
                       {canDelete ? (
                         <button onClick={() => setDeleteTarget(u)}
+                          title="刪除帳號"
                           className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       ) : (
-                        !canEdit && <span className="text-xs text-gray-300 px-3">—</span>
+                        !canEdit && !canManageSelfCred && <span className="text-xs text-gray-300 px-3">—</span>
                       )}
                     </div>
                   </td>
@@ -453,8 +546,8 @@ export default function StaffManagement() {
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <p className="text-xs text-amber-700 font-medium mb-1">登入方式說明</p>
         <ul className="text-xs text-amber-600 space-y-0.5 list-disc list-inside">
-          <li>關懷站專員：填入 Google Email，員工用 Google 一鍵登入，無需記密碼</li>
-          <li>管理者：可設帳號密碼，亦可加填 Google Email 支援兩種方式登入</li>
+          <li>關懷站專員：填入 Google Email，員工用 Google 一鍵登入；首次登入後可自行設定帳號密碼</li>
+          <li>管理者：以 Google Email 建立帳號，首次登入後可自行設定帳號密碼，支援 Google 與帳密兩種方式</li>
           <li>超級管理者：帳號密碼登入，不存於資料庫，系統最高安全後門</li>
         </ul>
       </div>

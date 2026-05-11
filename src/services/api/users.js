@@ -64,3 +64,19 @@ export async function deleteUser(id) {
   const { error } = await supabase.from('user_accounts').delete().eq('id', id)
   if (error) throw error
 }
+
+export async function resetUserCredentials(id) {
+  const { error } = await supabase
+    .from('user_accounts')
+    .update({ username: null, password: null })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function setUserCredentials(id, username, password) {
+  const { error } = await supabase
+    .from('user_accounts')
+    .update({ username, password })
+    .eq('id', id)
+  if (error) throw error
+}

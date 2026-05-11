@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X } from 'lucide-react'
 import { calcProRatedFee } from '../utils/billing'
+import { isExpired } from '../utils/courseUtils'
 import { useAudit } from '../contexts/AuditContext'
 import { useAuth } from '../contexts/AuthContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
@@ -397,7 +398,7 @@ export default function Courses() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-800">課程管理</h1>
-          <p className="text-sm text-gray-400 mt-1">共 {courses.length} 堂課程</p>
+          <p className="text-sm text-gray-400 mt-1">共 {courses.filter(c => !isExpired(c)).length} 堂進行中</p>
         </div>
         <div className="flex gap-2">
           <button onClick={exportCSV}
@@ -480,7 +481,7 @@ export default function Courses() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {courses.map(c => {
+        {courses.filter(c => !isExpired(c)).map(c => {
           const enrolled = getEnrolled(c.id)
           const waitlist = getWaitlist(c.id)
           const isFull = c.enrolled >= c.capacity

@@ -30,6 +30,7 @@ export function AuthProvider({ children }) {
   const [currentOrg, setCurrentOrg]           = useState(loadOrg)
   const [pendingSuperAdmin, setPendingSuperAdmin] = useState(null) // 驗證完但尚未選組織
   const [googleError, setGoogleError]         = useState('')
+  const [pendingSetup, setPendingSetup]       = useState(false)  // 首次 Google 登入，引導設定帳密
 
   function applySession(userObj, org) {
     setUser(userObj)
@@ -48,6 +49,7 @@ export function AuthProvider({ children }) {
           if (record) {
             applySession(buildUserFromRecord(record), record.organizations)
             setGoogleError('')
+            if (!record.username) setPendingSetup(true)
           } else {
             await supabase.auth.signOut()
             setGoogleError('此 Google 帳號尚未被授權，請聯絡管理者新增帳號')
@@ -94,6 +96,22 @@ export function AuthProvider({ children }) {
     return { ok: true, needOrgPick: false }
   }
 
+  // 首次 Google 登入後，引導設定帳密
+  function dismissSetup() { setPendingSetup(false) }
+
+  function finishSetup(username) {
+    const updated = { ...user, username }
+    setUser(updated)
+    localStorage.setItem(USER_KEY, JSON.stringify(updated))
+    setPendingSetup(false)
+  }
+
+  function updateLocalUser(updates) {
+    const updated = { ...user, ...updates }
+    setUser(updated)
+    localStorage.setItem(USER_KEY, JSON.stringify(updated))
+  }
+
   // 超級管理者選完組織後呼叫，才真正完成登入
   function completeSuperAdminLogin(org) {
     if (!pendingSuperAdmin) return
@@ -127,6 +145,7 @@ export function AuthProvider({ children }) {
       login, completeSuperAdminLogin, loginWithGoogle, logout,
       isAdmin, isSuperAdmin,
       googleError, setGoogleError,
+      pendingSetup, dismissSetup, finishSetup, updateLocalUser,
     }}>
       {children}
     </AuthContext.Provider>

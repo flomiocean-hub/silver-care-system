@@ -32,12 +32,16 @@ export async function updateCareStation(id, updates) {
       .maybeSingle()
 
     if (existing) {
-      await supabase.from('organizations').update({ status: 'active' }).eq('id', existing.id)
+      await supabase.from('organizations')
+        .update({ status: 'active', city: station.city ?? null, district: station.district ?? null })
+        .eq('id', existing.id)
     } else {
       const { error: orgErr } = await supabase.from('organizations').insert({
-        name: station.org_name,
+        name:       station.org_name,
         short_name: shortName,
-        status: 'active',
+        status:     'active',
+        city:       station.city ?? null,
+        district:   station.district ?? null,
       })
       if (orgErr) throw new Error(`組織同步失敗：${orgErr.message}`)
     }

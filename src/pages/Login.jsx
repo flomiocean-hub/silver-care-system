@@ -10,11 +10,13 @@ export default function Login() {
     googleError, setGoogleError, pendingSuperAdmin,
   } = useAuth()
 
-  const [orgs, setOrgs]               = useState([])
-  const [orgLoading, setOrgLoading]   = useState(true)
-  const [selectedOrg, setSelectedOrg] = useState(null)
-  const [rememberOrg, setRememberOrg] = useState(true)
-  const [username, setUsername]       = useState('')
+  const [orgs, setOrgs]                   = useState([])
+  const [orgLoading, setOrgLoading]       = useState(true)
+  const [selectedOrg, setSelectedOrg]     = useState(null)
+  const [rememberOrg, setRememberOrg]     = useState(true)
+  const [filterCity, setFilterCity]       = useState('')
+  const [filterDistrict, setFilterDistrict] = useState('')
+  const [username, setUsername]           = useState('')
   const [password, setPassword]       = useState('')
   const [error, setError]             = useState('')
   const [loading, setLoading]         = useState(false)
@@ -27,7 +29,11 @@ export default function Login() {
         const remembered = loadOrg()
         if (remembered) {
           const match = list.find(o => o.id === remembered.id)
-          if (match) setSelectedOrg(match)
+          if (match) {
+            setSelectedOrg(match)
+            if (match.city)     setFilterCity(match.city)
+            if (match.district) setFilterDistrict(match.district)
+          }
         } else if (list.length === 1) {
           setSelectedOrg(list[0])
         }
@@ -66,9 +72,22 @@ export default function Login() {
 
   // ── 超級管理者選組織（第二步）──
   if (pendingSuperAdmin) {
+    const cities = [...new Set(orgs.map(o => o.city).filter(Boolean))].sort()
+    const districts = [...new Set(
+      orgs
+        .filter(o => !filterCity || o.city === filterCity)
+        .map(o => o.district)
+        .filter(Boolean)
+    )].sort()
+    const filteredOrgs = orgs.filter(o => {
+      if (filterCity     && o.city     !== filterCity)     return false
+      if (filterDistrict && o.district !== filterDistrict) return false
+      return true
+    })
+
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-5">
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-4">
           <div className="text-center">
             <div className="inline-flex items-center justify-center w-12 h-12 bg-primary rounded-xl mb-3">
               <Heart className="w-6 h-6 text-white" />
@@ -82,16 +101,64 @@ export default function Login() {
               <Loader2 className="w-4 h-4 animate-spin" /> 載入中...
             </div>
           ) : (
-            <div className="relative">
-              <select
-                value={selectedOrg?.id ?? ''}
-                onChange={e => setSelectedOrg(orgs.find(o => o.id === Number(e.target.value)) ?? null)}
-                className="w-full appearance-none border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white pr-10"
-              >
-                <option value="">— 請選擇單位 —</option>
-                {orgs.map(o => <option key={o.id} value={o.id}>{o.short_name || o.name}</option>)}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <div className="space-y-2">
+              {/* 縣市 + 行政區 篩選（有 city 資料才顯示）*/}
+              {cities.length > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <select
+                      value={filterCity}
+                      onChange={e => {
+                        setFilterCity(e.target.value)
+                        setFilterDistrict('')
+                        setSelectedOrg(null)
+                      }}
+                      className="w-full appearance-none border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white pr-7 text-gray-700"
+                    >
+                      <option value="">全部縣市</option>
+                      {cities.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                  </div>
+                  <div className="relative">
+                    <select
+                      value={filterDistrict}
+                      onChange={e => {
+                        setFilterDistrict(e.target.value)
+                        setSelectedOrg(null)
+                      }}
+                      disabled={!filterCity}
+                      className="w-full appearance-none border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white pr-7 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <option value="">全部行政區</option>
+                      {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
+              {/* 單位下拉 */}
+              <div className="relative">
+                <select
+                  value={selectedOrg?.id ?? ''}
+                  onChange={e => setSelectedOrg(filteredOrgs.find(o => o.id === Number(e.target.value)) ?? null)}
+                  className="w-full appearance-none border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white pr-10"
+                >
+                  <option value="">
+                    {filteredOrgs.length === 0 ? '— 此條件無合作單位 —' : '— 請選擇單位 —'}
+                  </option>
+                  {filteredOrgs.map(o => <option key={o.id} value={o.id}>{o.short_name || o.name}</option>)}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+
+              {/* 已選單位的縣市 / 行政區確認 */}
+              {selectedOrg && (selectedOrg.city || selectedOrg.district) && (
+                <p className="text-xs text-gray-400 text-center">
+                  {[selectedOrg.city, selectedOrg.district].filter(Boolean).join(' · ')}
+                </p>
+              )}
             </div>
           )}
 
