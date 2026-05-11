@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X } from 'lucide-react'
+import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X, CalendarDays, Archive } from 'lucide-react'
 import { calcProRatedFee } from '../utils/billing'
 import { isExpired } from '../utils/courseUtils'
+import CourseCalendar from '../components/CourseCalendar'
+import ExpiredCourseView from '../components/ExpiredCourseView'
 import { useAudit } from '../contexts/AuditContext'
 import { useAuth } from '../contexts/AuthContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
@@ -36,6 +38,7 @@ export default function Courses() {
   const [enrollName, setEnrollName] = useState('')
   const [enrollPaid, setEnrollPaid] = useState('')
   const [adminOverride, setAdminOverride] = useState(false)
+  const [view, setView] = useState('list') // 'list' | 'calendar' | 'expired'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -395,12 +398,27 @@ export default function Courses() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-800">課程管理</h1>
           <p className="text-sm text-gray-400 mt-1">共 {courses.filter(c => !isExpired(c)).length} 堂進行中</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* 檢視切換 */}
+          <div className="flex bg-gray-100 rounded-xl p-1 text-sm">
+            <button onClick={() => setView('list')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${view === 'list' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>
+              <BookOpen className="w-3.5 h-3.5" /> 清單
+            </button>
+            <button onClick={() => setView('calendar')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${view === 'calendar' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>
+              <CalendarDays className="w-3.5 h-3.5" /> 月曆
+            </button>
+            <button onClick={() => setView('expired')}
+              className={`px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${view === 'expired' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>
+              <Archive className="w-3.5 h-3.5" /> 過期
+            </button>
+          </div>
           <button onClick={exportCSV}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 text-sm font-medium">
             <Download className="w-4 h-4" /> 匯出
@@ -480,7 +498,10 @@ export default function Courses() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {view === 'calendar' && <CourseCalendar courses={courses} />}
+      {view === 'expired' && <ExpiredCourseView courses={courses} />}
+
+      {view === 'list' && <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {courses.filter(c => !isExpired(c)).map(c => {
           const enrolled = getEnrolled(c.id)
           const waitlist = getWaitlist(c.id)
@@ -596,7 +617,7 @@ export default function Courses() {
             </div>
           )
         })}
-      </div>
+      </div>}
     </div>
   )
 }

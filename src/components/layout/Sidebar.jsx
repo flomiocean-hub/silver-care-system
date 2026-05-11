@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, UserCheck, Users, BookOpen, DollarSign, Brain, History, ShieldCheck, Building2, CalendarDays, Archive } from 'lucide-react'
+import { LayoutDashboard, UserCheck, Users, BookOpen, DollarSign, Brain, History, ShieldCheck, Building2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 const NAV_ITEMS = [
@@ -7,9 +7,7 @@ const NAV_ITEMS = [
   { to: '/checkin',        icon: UserCheck,       label: '數位簽到',     adminOnly: false, superAdminOnly: false },
   { to: '/members',        icon: Users,           label: '長者管理',     adminOnly: false, superAdminOnly: false },
   { to: '/courses',        icon: BookOpen,        label: '課程管理',     adminOnly: false, superAdminOnly: false },
-  { to: '/schedule',        icon: CalendarDays,    label: '課程月曆',     adminOnly: false, superAdminOnly: false },
-  { to: '/expired-courses', icon: Archive,         label: '過期課程',     adminOnly: false, superAdminOnly: false },
-  { to: '/finance',         icon: DollarSign,      label: '財務追蹤',     adminOnly: false, superAdminOnly: false },
+  { to: '/finance',        icon: DollarSign,      label: '財務追蹤',     adminOnly: false, superAdminOnly: false },
   { to: '/ai-insights',    icon: Brain,           label: 'AI 關懷洞察', adminOnly: false, superAdminOnly: false },
   { to: '/logs',           icon: History,         label: '操作記錄',     adminOnly: false, superAdminOnly: false },
   { to: '/care-stations',  icon: Building2,       label: '關懷站資訊',   adminOnly: false, superAdminOnly: true  },

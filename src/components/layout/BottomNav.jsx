@@ -1,13 +1,13 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, UserCheck, Users, BookOpen, DollarSign, CalendarDays } from 'lucide-react'
+import { LayoutDashboard, UserCheck, Users, BookOpen, DollarSign, Brain } from 'lucide-react'
 
 const navItems = [
-  { to: '/',          icon: LayoutDashboard, label: '儀表板' },
-  { to: '/checkin',   icon: UserCheck,       label: '簽到' },
-  { to: '/members',   icon: Users,           label: '長者' },
-  { to: '/courses',   icon: BookOpen,        label: '課程' },
-  { to: '/finance',   icon: DollarSign,      label: '財務' },
-  { to: '/schedule',  icon: CalendarDays,    label: '月曆' },
+  { to: '/',            icon: LayoutDashboard, label: '儀表板' },
+  { to: '/checkin',     icon: UserCheck,       label: '簽到' },
+  { to: '/members',     icon: Users,           label: '長者' },
+  { to: '/courses',     icon: BookOpen,        label: '課程' },
+  { to: '/finance',     icon: DollarSign,      label: '財務' },
+  { to: '/ai-insights', icon: Brain,           label: 'AI' },
 ]
 
 export default function BottomNav() {
