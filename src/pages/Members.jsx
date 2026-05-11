@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, UserPlus, Trash2, Edit3, Phone, MapPin, User, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react'
+import { Search, UserPlus, Trash2, Edit3, Phone, MapPin, User, Loader2, ShieldCheck, ShieldAlert, Printer } from 'lucide-react'
 import { getRiskLevel } from '../utils/riskScoring'
 import { toRocDate, rocToIso } from '../utils/dateUtils'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
 import { useAuth } from '../contexts/AuthContext'
 import { useAudit } from '../contexts/AuditContext'
 import { getMembers, addMember, updateMember, deleteMember } from '../services/api/members'
+import { printConsentForm } from '../utils/printConsent'
+import { getOrgName } from '../config/org'
 
 const TAG_COLORS = {
   '獨居':     'bg-orange-100 text-orange-700',
@@ -221,26 +223,38 @@ export default function Members() {
                 ))}
               </div>
             </div>
-            <div className="col-span-2 flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
-              <div>
-                <p className="text-sm font-medium text-gray-700">個資使用同意書</p>
-                <p className="text-xs text-gray-400 mt-0.5">長者已簽署書面同意書，同意健康資料用於照護管理</p>
+            <div className="col-span-2 p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">個資使用同意書</p>
+                  <p className="text-xs text-gray-400 mt-0.5">長者已簽署書面同意書，同意健康資料用於照護管理</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({
+                    ...p,
+                    consent_signed: !p.consent_signed,
+                    consent_signed_at: !p.consent_signed ? new Date().toISOString() : null,
+                  }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    form.consent_signed ? 'bg-green-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                    form.consent_signed ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setForm(p => ({
-                  ...p,
-                  consent_signed: !p.consent_signed,
-                  consent_signed_at: !p.consent_signed ? new Date().toISOString() : null,
-                }))}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  form.consent_signed ? 'bg-green-500' : 'bg-gray-300'
-                }`}
-              >
-                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                  form.consent_signed ? 'translate-x-6' : 'translate-x-1'
-                }`} />
-              </button>
+              {showForm === 'edit' && (
+                <button
+                  type="button"
+                  onClick={() => printConsentForm(form, getOrgName())}
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  列印同意書
+                </button>
+              )}
             </div>
           </div>
           <div className="flex gap-3">
