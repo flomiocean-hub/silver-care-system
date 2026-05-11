@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, CheckCircle, Upload, Clock, AlertTriangle, Loader2 } from 'lucide-react'
+import { Search, CheckCircle, Upload, Clock, AlertTriangle, Loader2, ShieldAlert } from 'lucide-react'
 import { getBPStatus, checkWeightAlert } from '../utils/riskScoring'
 import { useAudit } from '../contexts/AuditContext'
 import { askGeminiOCR, hasGemini } from '../services/geminiService'
@@ -202,10 +202,44 @@ export default function CheckIn() {
                 </div>
 
                 {bpStatus && (
-                  <div className={`p-3 rounded-lg text-sm ${bpStatus.bg}`}>
-                    <span className="font-medium">血壓判讀：</span>
-                    <span className={`font-bold ${bpStatus.color}`}>{bpStatus.label}</span>
-                    <span className="text-gray-500 text-xs ml-2">（依台灣中高齡{selected.gender}性基準）</span>
+                  <div className={`rounded-xl border p-4 space-y-2 ${bpStatus.bg} ${bpStatus.border} ${
+                    bpStatus.level === 'stage2' ? 'animate-pulse' : ''
+                  }`}>
+                    {/* 標題列 */}
+                    <div className="flex items-center gap-2">
+                      {bpStatus.level === 'stage2' && <ShieldAlert className="w-5 h-5 text-red-600 shrink-0" />}
+                      {bpStatus.level === 'stage1' && <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />}
+                      {bpStatus.level === 'border'  && <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0" />}
+                      {bpStatus.level === 'low'     && <AlertTriangle className="w-4 h-4 text-blue-500 shrink-0" />}
+                      <span className={`font-bold text-sm ${bpStatus.color}`}>
+                        血壓判讀：{bpStatus.label}
+                      </span>
+                      <span className="text-xs text-gray-400 ml-auto">
+                        依台灣中高齡{selected.gender}性基準
+                      </span>
+                    </div>
+
+                    {/* 數值說明 */}
+                    <p className={`text-sm font-medium ${bpStatus.color}`}>{bpStatus.message}</p>
+
+                    {/* 建議動作（正常時不顯示） */}
+                    {bpStatus.action && (
+                      <div className={`mt-1 pt-2 border-t flex items-start gap-2 ${
+                        bpStatus.level === 'stage2' ? 'border-red-300' :
+                        bpStatus.level === 'stage1' ? 'border-orange-200' :
+                        bpStatus.level === 'low'    ? 'border-blue-200' :
+                        'border-yellow-200'
+                      }`}>
+                        <span className="text-base shrink-0">
+                          {bpStatus.level === 'stage2' ? '🚨' :
+                           bpStatus.level === 'stage1' ? '⚠️' :
+                           bpStatus.level === 'low'    ? '💙' : 'ℹ️'}
+                        </span>
+                        <p className={`text-sm font-medium ${bpStatus.color}`}>
+                          {bpStatus.action}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
