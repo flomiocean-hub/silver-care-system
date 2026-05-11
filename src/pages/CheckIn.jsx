@@ -3,7 +3,7 @@ import { Search, CheckCircle, Upload, Clock, AlertTriangle, Loader2, ShieldAlert
 import { getBPStatus, checkWeightAlert } from '../utils/riskScoring'
 import { useAudit } from '../contexts/AuditContext'
 import { askGeminiOCR, hasGemini } from '../services/geminiService'
-import { getMembers } from '../services/api/members'
+import { getMembers, updateMember } from '../services/api/members'
 import { getTodayCheckins, addCheckin } from '../services/api/checkins'
 import { getHealthRecords } from '../services/api/health'
 
@@ -59,14 +59,18 @@ export default function CheckIn() {
   async function handleCheckin() {
     if (!selected || saving) return
     setSaving(true)
-    await addCheckin({
-      member_id: selected.id,
-      name: selected.name,
-      systolic: vitals.systolic ? Number(vitals.systolic) : null,
-      diastolic: vitals.diastolic ? Number(vitals.diastolic) : null,
-      pulse: vitals.pulse ? Number(vitals.pulse) : null,
-      weight: vitals.weight ? Number(vitals.weight) : null,
-    })
+    const today = new Date().toISOString().slice(0, 10)
+    await Promise.all([
+      addCheckin({
+        member_id: selected.id,
+        name: selected.name,
+        systolic: vitals.systolic ? Number(vitals.systolic) : null,
+        diastolic: vitals.diastolic ? Number(vitals.diastolic) : null,
+        pulse: vitals.pulse ? Number(vitals.pulse) : null,
+        weight: vitals.weight ? Number(vitals.weight) : null,
+      }),
+      updateMember(selected.id, { last_seen: today }),
+    ])
     addLog({
       action: '簽到',
       module: '數位簽到',
