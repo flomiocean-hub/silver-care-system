@@ -1,4 +1,4 @@
-export default function StatCard({ title, value, unit, trend, icon, color = 'emerald' }) {
+export default function StatCard({ title, value, unit, trend, icon, color = 'emerald', onClick }) {
   const colors = {
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     blue: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -12,7 +12,7 @@ export default function StatCard({ title, value, unit, trend, icon, color = 'eme
     red: 'bg-red-100 text-red-600',
   }
   return (
-    <div className={`rounded-xl border p-3 md:p-5 flex items-center gap-2 md:gap-4 bg-white shadow-sm ${colors[color]}`}>
+    <div onClick={onClick} className={`rounded-xl border p-3 md:p-5 flex items-center gap-2 md:gap-4 bg-white shadow-sm ${colors[color]} ${onClick ? 'cursor-pointer hover:brightness-95 transition-all' : ''}`}>
       <div className={`p-2 md:p-3 rounded-xl shrink-0 ${iconBg[color]}`}>
         {icon}
       </div>

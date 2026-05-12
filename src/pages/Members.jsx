@@ -15,6 +15,13 @@ const TAG_COLORS = {
   '今日出席': 'bg-green-100 text-green-700',
   '探訪':     'bg-purple-100 text-purple-700',
   '電訪追蹤': 'bg-blue-100 text-blue-700',
+  '久未出席': 'bg-gray-100 text-gray-600',
+}
+
+const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000
+function isLongAbsent(last_seen) {
+  if (!last_seen) return true
+  return Date.now() - new Date(last_seen).getTime() > FOURTEEN_DAYS_MS
 }
 
 const MEMBER_TYPES   = ['出席型', '探訪型']
@@ -69,7 +76,7 @@ export default function Members() {
       filter === 'all'        ? true :
       filter === 'alone'      ? m.tags?.includes('獨居') :
       filter === 'high'       ? m.risk_score >= 70 :
-      filter === 'absent'     ? new Date(m.last_seen) < new Date(Date.now() - 14 * 86400000) :
+      filter === 'absent'     ? isLongAbsent(m.last_seen) :
       filter === 'visit'      ? m.member_type === '探訪型' :
       filter === 'phone'      ? m.tags?.includes('電訪追蹤') :
       filter === 'no_consent' ? !m.consent_signed : true
@@ -325,6 +332,9 @@ export default function Members() {
                   {(m.tags ?? []).map(tag => (
                     <span key={tag} className={`text-xs px-2 py-0.5 rounded-full font-medium ${TAG_COLORS[tag] ?? 'bg-gray-100 text-gray-600'}`}>{tag}</span>
                   ))}
+                  {isLongAbsent(m.last_seen) && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">久未出席</span>
+                  )}
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${risk.bg} ${risk.text}`}>{risk.label}</span>
                 </div>
                 <div className="text-xs text-gray-500 space-y-1">

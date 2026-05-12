@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useAudit } from '../contexts/AuditContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
 import { getActiveOrganizations } from '../services/api/organizations'
-import { getAllUsers, createUser, updateUser, deleteUser, resetUserCredentials, setUserCredentials } from '../services/api/users'
+import { getAllUsers, getUsersByOrg, createUser, updateUser, deleteUser, resetUserCredentials, setUserCredentials } from '../services/api/users'
 
 const ROLE_STYLE = {
   '超級管理者': 'bg-purple-100 text-purple-700',
@@ -44,9 +44,10 @@ export default function StaffManagement() {
   const [selfCredSaving, setSelfCredSaving]     = useState(false)
 
   useEffect(() => {
-    getActiveOrganizations().then(setOrgs)
-    getAllUsers().then(setDbUsers)
-  }, [])
+    if (isSuperAdmin) getActiveOrganizations().then(setOrgs)
+    const loadUsers = isSuperAdmin ? getAllUsers() : getUsersByOrg(user.org_id)
+    loadUsers.then(setDbUsers)
+  }, [isSuperAdmin, user.org_id])
 
   if (!isAdmin) {
     return (
@@ -63,7 +64,7 @@ export default function StaffManagement() {
       ...(isSuperAdmin ? [SUPERADMIN_ROW] : []),
       ...dbUsers.filter(u => isSuperAdmin || u.role !== '超級管理者'),
     ]
-    if (!isSuperAdmin) return base
+    if (!isSuperAdmin) return base.filter(u => u.org_id === user.org_id)
     return base.filter(u => {
       if (filterOrg  && String(u.org_id) !== filterOrg && !u._superadmin) return false
       if (filterName) {
@@ -546,9 +547,7 @@ export default function StaffManagement() {
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <p className="text-xs text-amber-700 font-medium mb-1">登入方式說明</p>
         <ul className="text-xs text-amber-600 space-y-0.5 list-disc list-inside">
-          <li>關懷站專員：填入 Google Email，員工用 Google 一鍵登入；首次登入後可自行設定帳號密碼</li>
-          <li>管理者：以 Google Email 建立帳號，首次登入後可自行設定帳號密碼，支援 Google 與帳密兩種方式</li>
-          <li>超級管理者：帳號密碼登入，不存於資料庫，系統最高安全後門</li>
+          <li>填入 Google Email 建立帳號，員工可用 Google 一鍵登入，或自行設定帳號密碼登入</li>
         </ul>
       </div>
     </div>

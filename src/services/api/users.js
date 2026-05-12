@@ -42,6 +42,16 @@ export async function getAllUsers() {
   return data ?? []
 }
 
+export async function getUsersByOrg(orgId) {
+  const { data } = await supabase
+    .from('user_accounts')
+    .select(SELECT)
+    .eq('org_id', orgId)
+    .order('role')
+    .order('name')
+  return data ?? []
+}
+
 export async function createUser({ name, role, org_id, username, password, google_email }) {
   const payload = { name, role, org_id }
   if (google_email) payload.google_email = google_email.toLowerCase()

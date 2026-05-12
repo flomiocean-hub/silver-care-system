@@ -64,7 +64,8 @@ export default function AIInsights() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, aiLoading])
 
-  const selectedMember = members.find(m => m.id === selectedMemberId) ?? members[0]
+  const membersWithHealth = members.filter(m => healthData.some(h => h.member_id === m.id))
+  const selectedMember = membersWithHealth.find(m => m.id === selectedMemberId) ?? membersWithHealth[0]
 
   const aloneHighRisk = members.filter(m => m.tags?.includes('獨居') && m.risk_score >= 60)
   const bpAbnormal = members.filter(m => {
@@ -241,14 +242,18 @@ export default function AIInsights() {
 
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <label className="text-xs text-gray-500 block mb-2">選擇長者查看血壓趨勢</label>
-            <select value={selectedMemberId ?? ''}
-              onChange={e => setSelectedMemberId(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary mb-3">
-              {members.map(m => (
-                <option key={m.id} value={m.id}>{m.name}（{m.gender}）</option>
-              ))}
-            </select>
+            <label className="text-xs text-gray-500 block mb-2">選擇長者查看血壓趨勢（近三個月）</label>
+            {membersWithHealth.length === 0 ? (
+              <p className="text-xs text-gray-400 py-2">尚無量測記錄</p>
+            ) : (
+              <select value={selectedMember?.id ?? ''}
+                onChange={e => setSelectedMemberId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                {membersWithHealth.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}（{m.gender}）</option>
+                ))}
+              </select>
+            )}
           </div>
           {selectedMember && (
             <HealthTrendChart data={healthData} memberId={selectedMember.id} memberName={selectedMember.name} />
