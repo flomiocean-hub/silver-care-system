@@ -2,11 +2,16 @@ import { supabase } from '../supabaseClient'
 import { getOrgId } from '../../config/org'
 
 export async function getHealthRecords() {
-  const { data } = await supabase.from('health_records').select('*, members(gender)').eq('org_id', getOrgId()).order('date')
+  const { data } = await supabase
+    .from('checkins')
+    .select('*, members(gender)')
+    .eq('org_id', getOrgId())
+    .not('systolic', 'is', null)
+    .order('checkin_date')
   return (data ?? []).map(r => ({
     ...r,
-    member_id: r.member_id,
-    gender:    r.members?.gender ?? '女',
+    date:   r.checkin_date,
+    gender: r.members?.gender ?? '女',
   }))
 }
 
