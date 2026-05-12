@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { to: '/courses',        icon: BookOpen,        label: '課程管理',     adminOnly: false, superAdminOnly: false },
   { to: '/finance',        icon: DollarSign,      label: '財務追蹤',     adminOnly: false, superAdminOnly: false },
   { to: '/ai-insights',    icon: Brain,           label: 'AI 關懷洞察', adminOnly: false, superAdminOnly: false },
-  { to: '/logs',           icon: History,         label: '操作記錄',     adminOnly: false, superAdminOnly: false },
+  { to: '/logs',           icon: History,         label: '操作記錄',     adminOnly: true,  superAdminOnly: false },
   { to: '/care-stations',  icon: Building2,       label: '關懷站資訊',   adminOnly: false, superAdminOnly: true  },
   { to: '/staff',          icon: ShieldCheck,     label: '帳號管理',     adminOnly: true,  superAdminOnly: false },
 ]

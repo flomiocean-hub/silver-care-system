@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { History, Filter } from 'lucide-react'
+import { History, Filter, Lock } from 'lucide-react'
 import { useAudit } from '../contexts/AuditContext'
+import { useAuth } from '../contexts/AuthContext'
 
 const ACTION_STYLE = {
   '新增':     'bg-green-100 text-green-700',
@@ -19,8 +20,19 @@ function fmtTime(iso) {
 
 export default function AuditLog() {
   const { logs } = useAudit()
+  const { isAdmin } = useAuth()
   const [filterAction, setFilterAction] = useState('all')
   const [filterModule, setFilterModule] = useState('all')
+
+  if (!isAdmin) {
+    return (
+      <div className="p-4 md:p-6 flex flex-col items-center justify-center min-h-[50vh] text-center">
+        <Lock className="w-12 h-12 text-gray-200 mb-4" />
+        <h2 className="text-lg font-semibold text-gray-600 mb-2">權限不足</h2>
+        <p className="text-sm text-gray-400">操作記錄功能僅供管理者使用</p>
+      </div>
+    )
+  }
 
   const allModules = ['all', ...Array.from(new Set(logs.map(l => l.module)))]
 
