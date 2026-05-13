@@ -2,18 +2,22 @@ import { supabase } from '../supabaseClient'
 import { getOrgId } from '../../config/org'
 
 export async function getAttendanceSummary() {
+  const since = new Date()
+  since.setDate(since.getDate() - 30)
   const { data } = await supabase
-    .from('attendance_summary')
-    .select('*')
+    .from('checkins')
+    .select('checkin_date')
     .eq('org_id', getOrgId())
-    .order('date')
-    .limit(30)
-  return (data ?? []).map(r => ({
-    date:     r.date,
-    count:    r.actual_count,
-    expected: r.expected_count,
-    rate:     r.expected_count > 0 ? Math.round((r.actual_count / r.expected_count) * 100) : 0,
-  }))
+    .gte('checkin_date', since.toISOString().slice(0, 10))
+    .order('checkin_date')
+  if (!data || data.length === 0) return []
+  const countByDate = {}
+  for (const r of data) {
+    countByDate[r.checkin_date] = (countByDate[r.checkin_date] ?? 0) + 1
+  }
+  return Object.entries(countByDate)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, count]) => ({ date, count }))
 }
 
 export async function upsertAttendance(date, actualCount, expectedCount) {

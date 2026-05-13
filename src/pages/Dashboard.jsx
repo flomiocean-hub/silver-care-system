@@ -42,13 +42,15 @@ export default function Dashboard() {
     )
   }
 
+  const today          = new Date().toISOString().slice(0, 10)
   const todayCount     = todayCheckins.length
   const totalMembers   = members.length
-  const highRiskCount  = members.filter(m => m.risk_score >= 70).length
+  const highRiskMembers = members.filter(m => m.risk_score >= 70)
+  const highRiskCount  = highRiskMembers.length
   const unpaidTotal    = finance.reduce((s, r) => s + (r.amount_due - r.amount_paid), 0)
-  const lastAttendance = attendance.length > 0 ? attendance[attendance.length - 1] : null
-  const lastCount      = lastAttendance?.count ?? '—'
-  const lastDate       = lastAttendance ? lastAttendance.date.slice(5).replace('-', '/') : ''
+  const prevAttendance = attendance.filter(d => d.date !== today).slice(-1)[0]
+  const lastCount      = prevAttendance?.count ?? '—'
+  const lastDate       = prevAttendance ? prevAttendance.date.slice(5).replace('-', '/') : ''
 
   const riskNormal  = members.filter(m => m.risk_score < 40).length
   const riskWatch   = members.filter(m => m.risk_score >= 40 && m.risk_score < 70).length
@@ -211,6 +213,20 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+
+            {highRiskMembers.length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs font-semibold text-gray-500 mb-2">高風險長者名單</p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {highRiskMembers.sort((a, b) => b.risk_score - a.risk_score).map(m => (
+                    <div key={m.id} className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
+                      <span className="text-sm text-gray-700 font-medium">{m.name}</span>
+                      <span className="text-xs font-bold text-red-600">{m.risk_score} 分</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
