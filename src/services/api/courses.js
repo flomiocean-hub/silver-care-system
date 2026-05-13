@@ -1,6 +1,25 @@
 import { supabase } from '../supabaseClient'
 import { getOrgId } from '../../config/org'
 
+export async function getEnrollmentSummary() {
+  const { data } = await supabase
+    .from('enrollments')
+    .select('member_id, enrolled_at')
+    .eq('org_id', getOrgId())
+  return data ?? []
+}
+
+export async function getMemberEnrollments(memberId) {
+  const { data } = await supabase
+    .from('enrollments')
+    .select('*, courses(name, start_date)')
+    .eq('org_id', getOrgId())
+    .eq('member_id', memberId)
+    .order('enrolled_at', { ascending: false })
+    .limit(10)
+  return data ?? []
+}
+
 export async function getCourses() {
   const { data } = await supabase.from('courses').select('*').eq('org_id', getOrgId()).order('id')
   return data ?? []

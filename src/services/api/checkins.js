@@ -32,3 +32,16 @@ export async function getCheckinDates(memberId) {
     .eq('member_id', memberId)
   return (data ?? []).map(r => r.checkin_date)
 }
+
+export async function getMemberCheckins(memberId) {
+  const since = new Date()
+  since.setMonth(since.getMonth() - 6)
+  const { data } = await supabase
+    .from('checkins')
+    .select('checkin_date, systolic, diastolic')
+    .eq('org_id', getOrgId())
+    .eq('member_id', memberId)
+    .gte('checkin_date', since.toISOString().slice(0, 10))
+    .order('checkin_date')
+  return data ?? []
+}

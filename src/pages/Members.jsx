@@ -6,8 +6,10 @@ import ConfirmDialog from '../components/layout/ConfirmDialog'
 import { useAuth } from '../contexts/AuthContext'
 import { useAudit } from '../contexts/AuditContext'
 import { getMembers, addMember, updateMember, deleteMember } from '../services/api/members'
+import { getEnrollmentSummary } from '../services/api/courses'
 import { printConsentForm } from '../utils/printConsent'
 import { getOrgName } from '../config/org'
+import MemberDrawer from '../components/members/MemberDrawer'
 
 const TAG_COLORS = {
   '獨居':     'bg-orange-100 text-orange-700',
@@ -16,6 +18,7 @@ const TAG_COLORS = {
   '探訪':     'bg-purple-100 text-purple-700',
   '電訪追蹤': 'bg-blue-100 text-blue-700',
   '久未出席': 'bg-gray-100 text-gray-600',
+  '久未參與': 'bg-amber-100 text-amber-700',
 }
 
 const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000
@@ -24,10 +27,26 @@ function isLongAbsent(last_seen) {
   return Date.now() - new Date(last_seen).getTime() > FOURTEEN_DAYS_MS
 }
 
+function getSixMonthsAgo() {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 6)
+  return d.toISOString().slice(0, 10)
+}
+
+function isLongInactive(member, lastEnrollmentMap) {
+  const cutoff = getSixMonthsAgo()
+  const lastCheckin  = member.last_seen ?? ''
+  const lastEnrolled = (lastEnrollmentMap[member.id] ?? '').slice(0, 10)
+  const lastActivity = lastCheckin > lastEnrolled ? lastCheckin : lastEnrolled
+  return !lastActivity || lastActivity < cutoff
+}
+
 const MEMBER_TYPES   = ['出席型', '探訪型']
 const AVAILABLE_TAGS = ['獨居', '高風險', '電訪追蹤', '探訪']
 const FILTER_OPTIONS = [
   { key: 'all',           label: '全部' },
+  { key: 'active',        label: '定期參與' },
+  { key: 'inactive',      label: '久未參與' },
   { key: 'alone',         label: '獨居' },
   { key: 'high',          label: '高風險' },
   { key: 'absent',        label: '久未出席' },
@@ -53,18 +72,27 @@ const emptyForm = {
 export default function Members() {
   const { isAdmin }  = useAuth()
   const { addLog }   = useAudit()
-  const [members, setMembers]           = useState([])
-  const [loading, setLoading]           = useState(true)
-  const [saving, setSaving]             = useState(false)
-  const [query, setQuery]               = useState('')
-  const [filter, setFilter]             = useState('all')
-  const [showForm, setShowForm]         = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [form, setForm]                 = useState(emptyForm)
+  const [members, setMembers]                   = useState([])
+  const [lastEnrollmentMap, setLastEnrollmentMap] = useState({})
+  const [loading, setLoading]                   = useState(true)
+  const [saving, setSaving]                     = useState(false)
+  const [query, setQuery]                       = useState('')
+  const [filter, setFilter]                     = useState('all')
+  const [showForm, setShowForm]                 = useState(false)
+  const [deleteTarget, setDeleteTarget]         = useState(null)
+  const [form, setForm]                         = useState(emptyForm)
+  const [selectedMember, setSelectedMember]     = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    setMembers(await getMembers())
+    const [memberData, enrollmentData] = await Promise.all([getMembers(), getEnrollmentSummary()])
+    setMembers(memberData)
+    const map = {}
+    for (const e of enrollmentData) {
+      const date = (e.enrolled_at ?? '').slice(0, 10)
+      if (!map[e.member_id] || date > map[e.member_id]) map[e.member_id] = date
+    }
+    setLastEnrollmentMap(map)
     setLoading(false)
   }, [])
 
@@ -74,6 +102,8 @@ export default function Members() {
     const q = !query || m.name.includes(query)
     const f =
       filter === 'all'        ? true :
+      filter === 'active'     ? !isLongInactive(m, lastEnrollmentMap) :
+      filter === 'inactive'   ? isLongInactive(m, lastEnrollmentMap) :
       filter === 'alone'      ? m.tags?.includes('獨居') :
       filter === 'high'       ? m.risk_score >= 70 :
       filter === 'absent'     ? isLongAbsent(m.last_seen) :
@@ -300,8 +330,11 @@ export default function Members() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map(m => {
             const risk = getRiskLevel(m.risk_score)
+            const inactive = isLongInactive(m, lastEnrollmentMap)
             return (
-              <div key={m.id} className={`bg-white rounded-xl border shadow-sm p-4 ${risk.border}`}>
+              <div key={m.id}
+                className={`bg-white rounded-xl border shadow-sm p-4 cursor-pointer hover:shadow-md transition-shadow ${risk.border}`}
+                onClick={() => setSelectedMember(m)}>
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${risk.bg} shrink-0`}>
@@ -316,12 +349,12 @@ export default function Members() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => startEdit(m)}
+                    <button onClick={e => { e.stopPropagation(); startEdit(m) }}
                       className="p-1.5 text-gray-400 hover:text-primary hover:bg-green-50 rounded-lg transition-colors">
                       <Edit3 className="w-3.5 h-3.5" />
                     </button>
                     {isAdmin && (
-                      <button onClick={() => setDeleteTarget(m)}
+                      <button onClick={e => { e.stopPropagation(); setDeleteTarget(m) }}
                         className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -334,6 +367,9 @@ export default function Members() {
                   ))}
                   {isLongAbsent(m.last_seen) && (
                     <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">久未出席</span>
+                  )}
+                  {inactive && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">久未參與</span>
                   )}
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${risk.bg} ${risk.text}`}>{risk.label}</span>
                 </div>
@@ -372,6 +408,10 @@ export default function Members() {
             )
           })}
         </div>
+      )}
+
+      {selectedMember && (
+        <MemberDrawer member={selectedMember} onClose={() => setSelectedMember(null)} />
       )}
     </div>
   )
