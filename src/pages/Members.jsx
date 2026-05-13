@@ -13,7 +13,6 @@ import MemberDrawer from '../components/members/MemberDrawer'
 
 const TAG_COLORS = {
   '獨居':     'bg-orange-100 text-orange-700',
-  '高風險':   'bg-red-100 text-red-700',
   '今日出席': 'bg-green-100 text-green-700',
   '探訪':     'bg-purple-100 text-purple-700',
   '電訪追蹤': 'bg-blue-100 text-blue-700',
@@ -42,7 +41,7 @@ function isLongInactive(member, lastEnrollmentMap) {
 }
 
 const MEMBER_TYPES   = ['出席型', '探訪型']
-const AVAILABLE_TAGS = ['獨居', '高風險', '電訪追蹤', '探訪']
+const AVAILABLE_TAGS = ['獨居', '電訪追蹤', '探訪']
 const FILTER_OPTIONS = [
   { key: 'all',           label: '全部' },
   { key: 'active',        label: '定期參與' },
@@ -362,7 +361,7 @@ export default function Members() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1 mb-3">
-                  {(m.tags ?? []).map(tag => (
+                  {(m.tags ?? []).filter(tag => tag !== '高風險').map(tag => (
                     <span key={tag} className={`text-xs px-2 py-0.5 rounded-full font-medium ${TAG_COLORS[tag] ?? 'bg-gray-100 text-gray-600'}`}>{tag}</span>
                   ))}
                   {isLongAbsent(m.last_seen) && (
