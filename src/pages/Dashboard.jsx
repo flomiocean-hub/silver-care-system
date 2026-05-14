@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Users, UserCheck, DollarSign, AlertTriangle, Loader2, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Users, UserCheck, Clock, AlertTriangle, Loader2, X } from 'lucide-react'
 import StatCard from '../components/dashboard/StatCard'
 import AlertPanel from '../components/dashboard/AlertPanel'
 import { getMembers } from '../services/api/members'
 import { getAttendanceSummary } from '../services/api/attendance'
-import { getFinanceRecords } from '../services/api/finance'
 import { getTodayCheckins } from '../services/api/checkins'
 import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -13,21 +13,20 @@ import {
 } from 'recharts'
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const [members, setMembers]       = useState([])
   const [attendance, setAttendance] = useState([])
-  const [finance, setFinance]       = useState([])
   const [todayCheckins, setTodayCheckins] = useState([])
   const [loading, setLoading]       = useState(true)
   const [showRiskModal, setShowRiskModal] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [m, a, f, tc] = await Promise.all([
-      getMembers(), getAttendanceSummary(), getFinanceRecords(), getTodayCheckins()
+    const [m, a, tc] = await Promise.all([
+      getMembers(), getAttendanceSummary(), getTodayCheckins()
     ])
     setMembers(m)
     setAttendance(a)
-    setFinance(f)
     setTodayCheckins(tc)
     setLoading(false)
   }, [])
@@ -45,9 +44,9 @@ export default function Dashboard() {
   const today          = new Date().toISOString().slice(0, 10)
   const todayCount     = todayCheckins.length
   const totalMembers   = members.length
-  const highRiskMembers = members.filter(m => m.risk_score >= 70)
-  const highRiskCount  = highRiskMembers.length
-  const unpaidTotal    = finance.reduce((s, r) => s + (r.amount_due - r.amount_paid), 0)
+  const highRiskMembers  = members.filter(m => m.risk_score >= 70)
+  const highRiskCount   = highRiskMembers.length
+  const pendingBPCount  = todayCheckins.filter(c => c.systolic == null).length
   const prevAttendance = attendance.filter(d => d.date !== today).slice(-1)[0]
   const lastCount      = prevAttendance?.count ?? '—'
   const lastDate       = prevAttendance ? prevAttendance.date.slice(5).replace('-', '/') : ''
@@ -101,12 +100,13 @@ export default function Dashboard() {
           onClick={() => setShowRiskModal(true)}
         />
         <StatCard
-          title="待收帳款"
-          value={unpaidTotal}
-          unit="元"
-          trend="本月欠費合計"
-          icon={<DollarSign className="w-5 h-5" />}
+          title="待量血壓"
+          value={pendingBPCount}
+          unit="人"
+          trend={pendingBPCount > 0 ? '點擊前往補登' : '今日全員已量測'}
+          icon={<Clock className="w-5 h-5" />}
           color="amber"
+          onClick={() => navigate('/checkin')}
         />
       </div>
 
