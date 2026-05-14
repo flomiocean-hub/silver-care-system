@@ -90,3 +90,10 @@ export async function setUserCredentials(id, username, password) {
     .eq('id', id)
   if (error) throw error
 }
+
+export async function submitAccountRequest({ org_id, org_name, name, email, phone }) {
+  const { error } = await supabase
+    .from('account_requests')
+    .insert({ org_id: org_id || null, org_name, name, email, phone })
+  if (error) throw error
+}

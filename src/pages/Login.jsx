@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Heart, AlertCircle, ChevronDown, Loader2 } from 'lucide-react'
+import { Heart, AlertCircle, ChevronDown, Loader2, CheckCircle2, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { getActiveOrganizations } from '../services/api/organizations'
 import { loadOrg } from '../config/org'
+import { submitAccountRequest } from '../services/api/users'
 
 export default function Login() {
   const {
@@ -21,6 +22,11 @@ export default function Login() {
   const [error, setError]             = useState('')
   const [loading, setLoading]         = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [showApply, setShowApply]         = useState(false)
+  const [applyForm, setApplyForm]         = useState({ org_id: '', org_name: '', name: '', email: '', phone: '' })
+  const [applyLoading, setApplyLoading]   = useState(false)
+  const [applySuccess, setApplySuccess]   = useState(false)
+  const [applyError, setApplyError]       = useState('')
 
   useEffect(() => {
     getActiveOrganizations()
@@ -59,6 +65,34 @@ export default function Login() {
   function handleOrgConfirm() {
     if (!selectedOrg) return
     completeSuperAdminLogin(selectedOrg)
+  }
+
+  async function handleApplySubmit(e) {
+    e.preventDefault()
+    setApplyLoading(true)
+    setApplyError('')
+    try {
+      const org = orgs.find(o => o.id === Number(applyForm.org_id))
+      await submitAccountRequest({
+        org_id:   org?.id ?? null,
+        org_name: org?.name ?? applyForm.org_name,
+        name:     applyForm.name.trim(),
+        email:    applyForm.email.trim(),
+        phone:    applyForm.phone.trim(),
+      })
+      setApplySuccess(true)
+    } catch {
+      setApplyError('送出失敗，請稍後再試')
+    } finally {
+      setApplyLoading(false)
+    }
+  }
+
+  function openApply() {
+    setApplyForm({ org_id: '', org_name: '', name: '', email: '', phone: '' })
+    setApplySuccess(false)
+    setApplyError('')
+    setShowApply(true)
   }
 
   async function handleGoogleLogin() {
@@ -261,10 +295,104 @@ export default function Login() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
+        <p className="text-center text-xs text-gray-400 mt-4">
+          還沒有帳號？
+          <button onClick={openApply} className="ml-1 text-primary font-medium hover:underline">
+            申請帳號使用
+          </button>
+        </p>
+
+        <p className="text-center text-xs text-gray-400 mt-3">
           © 2026 銀髮關懷據點智慧管理系統
         </p>
       </div>
+
+      {/* 申請帳號 Modal */}
+      {showApply && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowApply(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6"
+            onClick={e => e.stopPropagation()}>
+
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">申請帳號使用</h2>
+                <p className="text-xs text-gray-400 mt-0.5">填寫後，我們將於 1–3 個工作天內與您連絡</p>
+              </div>
+              <button onClick={() => setShowApply(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+
+            {applySuccess ? (
+              <div className="py-8 text-center space-y-3">
+                <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto" />
+                <p className="font-semibold text-gray-800">申請已送出！</p>
+                <p className="text-sm text-gray-500">我們將於 1–3 個工作天內<br />以 Email 或電話與您連絡。</p>
+                <button onClick={() => setShowApply(false)}
+                  className="mt-2 px-6 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light transition-colors">
+                  關閉
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleApplySubmit} className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">所屬單位 *</label>
+                  <div className="relative">
+                    <select
+                      required
+                      value={applyForm.org_id}
+                      onChange={e => setApplyForm(p => ({ ...p, org_id: e.target.value }))}
+                      className="w-full appearance-none border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white pr-8"
+                    >
+                      <option value="">— 請選擇單位 —</option>
+                      {orgs.map(o => (
+                        <option key={o.id} value={o.id}>{o.short_name || o.name}</option>
+                      ))}
+                      <option value="other">其他（請於備註說明）</option>
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                {[
+                  { key: 'name',  label: '姓名 *',    type: 'text',  placeholder: '您的姓名',     required: true },
+                  { key: 'email', label: 'Email *',   type: 'email', placeholder: 'yourname@example.com', required: true },
+                  { key: 'phone', label: '連絡電話',  type: 'tel',   placeholder: '09XX-XXX-XXX',  required: false },
+                ].map(({ key, label, type, placeholder, required }) => (
+                  <div key={key}>
+                    <label className="text-xs font-medium text-gray-500 block mb-1">{label}</label>
+                    <input
+                      type={type}
+                      required={required}
+                      value={applyForm[key]}
+                      onChange={e => setApplyForm(p => ({ ...p, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition"
+                    />
+                  </div>
+                ))}
+
+                {applyError && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                    <p className="text-red-600 text-sm">{applyError}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={applyLoading}
+                  className="w-full py-3 bg-primary text-white rounded-xl font-semibold text-sm hover:bg-primary-light transition-colors disabled:opacity-50 flex items-center justify-center gap-2 mt-1"
+                >
+                  {applyLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {applyLoading ? '送出中…' : '送出申請'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
