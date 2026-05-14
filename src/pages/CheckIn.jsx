@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, CheckCircle, Upload, Clock, AlertTriangle, Loader2, ShieldAlert } from 'lucide-react'
+import { Search, CheckCircle, Upload, Clock, AlertTriangle, Loader2, ShieldAlert, PenLine } from 'lucide-react'
 import { getBPStatus, checkWeightAlert } from '../utils/riskScoring'
 import { useAudit } from '../contexts/AuditContext'
 import { askGeminiOCR, hasGemini } from '../services/geminiService'
 import { getMembers, updateMember } from '../services/api/members'
-import { getTodayCheckins, addCheckin } from '../services/api/checkins'
+import { getTodayCheckins, addCheckin, updateCheckin } from '../services/api/checkins'
 import { getHealthRecords } from '../services/api/health'
 
 export default function CheckIn() {
@@ -22,6 +22,9 @@ export default function CheckIn() {
   const [ocrResult, setOcrResult] = useState(null)
   const [ocrLoading, setOcrLoading] = useState(false)
   const [weightAlert, setWeightAlert] = useState(null)
+  const [editingId, setEditingId]     = useState(null)
+  const [editVitals, setEditVitals]   = useState({ systolic: '', diastolic: '', pulse: '', weight: '' })
+  const [editSaving, setEditSaving]   = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -88,6 +91,29 @@ export default function CheckIn() {
     await load()
     setSaving(false)
     setTimeout(() => setShowSuccess(false), 3000)
+  }
+
+  function startEdit(checkin) {
+    setEditingId(checkin.id)
+    setEditVitals({ systolic: '', diastolic: '', pulse: '', weight: '' })
+  }
+
+  async function handleEditSubmit(checkin) {
+    if (editSaving) return
+    setEditSaving(true)
+    await updateCheckin(checkin.id, editVitals)
+    const member = members.find(m => m.id === checkin.member_id)
+    addLog({
+      action: '補登血壓',
+      module: '數位簽到',
+      target: checkin.name,
+      detail: editVitals.systolic
+        ? `血壓 ${editVitals.systolic}/${editVitals.diastolic} mmHg・脈搏 ${editVitals.pulse || '—'}・體重 ${editVitals.weight || '—'} kg`
+        : '無生理數據',
+    })
+    setEditingId(null)
+    setEditSaving(false)
+    await load()
   }
 
   async function handleOCR(e) {
@@ -305,34 +331,129 @@ export default function CheckIn() {
           <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
             <Clock className="w-4 h-4" /> 今日已簽到（{checkins.length} 人）
           </h3>
-          <div className="space-y-2 max-h-[480px] overflow-y-auto">
-            {checkins.map(c => {
-              const member = members.find(m => m.id === c.member_id)
-              const bp = c.systolic != null
-                ? getBPStatus(Number(c.systolic), Number(c.diastolic), member?.gender ?? '女')
-                : null
-              return (
-                <div key={c.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-                    <div>
-                      <p className="font-medium text-gray-800 text-sm">{c.name}</p>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {c.systolic != null && (
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${bp?.bg} ${bp?.color}`}>
-                            {c.systolic}/{c.diastolic} {bp?.label}
-                          </span>
-                        )}
-                        {c.pulse != null && <span className="text-xs text-gray-400">脈搏 {c.pulse}</span>}
-                        {c.weight != null && <span className="text-xs text-gray-400">{c.weight}kg</span>}
-                      </div>
+
+          {(() => {
+            const pending   = checkins.filter(c => c.systolic == null)
+            const completed = checkins.filter(c => c.systolic != null)
+            return (
+              <div className="space-y-4 max-h-[520px] overflow-y-auto">
+
+                {/* 待補量區 */}
+                {pending.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">
+                        ⏳ 待補量 {pending.length} 人
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {pending.map(c => (
+                        <div key={c.id} className="border border-orange-200 bg-orange-50 rounded-lg overflow-hidden">
+                          <div className="flex items-center justify-between px-3 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-orange-400 shrink-0" />
+                              <div>
+                                <p className="font-medium text-gray-800 text-sm">{c.name}</p>
+                                <p className="text-xs text-orange-400">簽到 {c.checkin_time ?? c.time}・尚未量測血壓</p>
+                              </div>
+                            </div>
+                            {editingId !== c.id && (
+                              <button
+                                onClick={() => startEdit(c)}
+                                className="flex items-center gap-1 text-xs font-semibold text-orange-600 border border-orange-300 bg-white px-2.5 py-1.5 rounded-lg hover:bg-orange-100 transition-colors shrink-0"
+                              >
+                                <PenLine className="w-3 h-3" /> 補登
+                              </button>
+                            )}
+                          </div>
+
+                          {editingId === c.id && (
+                            <div className="px-3 pb-3 space-y-2 border-t border-orange-200 pt-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                {[
+                                  { key: 'systolic',  label: '收縮壓', unit: 'mmHg' },
+                                  { key: 'diastolic', label: '舒張壓', unit: 'mmHg' },
+                                  { key: 'pulse',     label: '脈搏',   unit: 'bpm'  },
+                                  { key: 'weight',    label: '體重',   unit: 'kg'   },
+                                ].map(({ key, label, unit }) => (
+                                  <div key={key}>
+                                    <label className="text-xs text-gray-500">{label}</label>
+                                    <input
+                                      type="number"
+                                      placeholder={unit}
+                                      value={editVitals[key]}
+                                      onChange={e => setEditVitals(p => ({ ...p, [key]: e.target.value }))}
+                                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex gap-2 pt-1">
+                                <button
+                                  onClick={() => handleEditSubmit(c)}
+                                  disabled={editSaving}
+                                  className="flex-1 py-2 bg-orange-500 text-white text-sm font-semibold rounded-lg hover:bg-orange-600 disabled:opacity-60 flex items-center justify-center gap-1"
+                                >
+                                  {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : '✓ 儲存'}
+                                </button>
+                                <button
+                                  onClick={() => setEditingId(null)}
+                                  className="px-3 py-2 text-sm text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                >
+                                  取消
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <span className="text-xs text-gray-400 font-mono shrink-0">{c.checkin_time ?? c.time}</span>
-                </div>
-              )
-            })}
-          </div>
+                )}
+
+                {/* 已完成區 */}
+                {completed.length > 0 && (
+                  <div>
+                    {pending.length > 0 && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-semibold text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
+                          ✓ 已完成 {completed.length} 人
+                        </span>
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      {completed.map(c => {
+                        const member = members.find(m => m.id === c.member_id)
+                        const bp = getBPStatus(Number(c.systolic), Number(c.diastolic), member?.gender ?? '女')
+                        return (
+                          <div key={c.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                              <div>
+                                <p className="font-medium text-gray-800 text-sm">{c.name}</p>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${bp?.bg} ${bp?.color}`}>
+                                    {c.systolic}/{c.diastolic} {bp?.label}
+                                  </span>
+                                  {c.pulse != null && <span className="text-xs text-gray-400">脈搏 {c.pulse}</span>}
+                                  {c.weight != null && <span className="text-xs text-gray-400">{c.weight}kg</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-xs text-gray-400 font-mono shrink-0">{c.checkin_time ?? c.time}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {checkins.length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-8">今日尚無簽到記錄</p>
+                )}
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>

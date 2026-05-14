@@ -33,6 +33,20 @@ export async function getCheckinDates(memberId) {
   return (data ?? []).map(r => r.checkin_date)
 }
 
+export async function updateCheckin(id, vitals) {
+  const { error } = await supabase
+    .from('checkins')
+    .update({
+      systolic:  vitals.systolic  ? Number(vitals.systolic)  : null,
+      diastolic: vitals.diastolic ? Number(vitals.diastolic) : null,
+      pulse:     vitals.pulse     ? Number(vitals.pulse)     : null,
+      weight:    vitals.weight    ? Number(vitals.weight)    : null,
+    })
+    .eq('id', id)
+    .eq('org_id', getOrgId())
+  if (error) throw error
+}
+
 export async function getMemberCheckins(memberId) {
   const since = new Date()
   since.setMonth(since.getMonth() - 6)
