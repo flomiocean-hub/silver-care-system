@@ -15,6 +15,7 @@ import CourseRegister from './pages/CourseRegister'
 import AuditLog from './pages/AuditLog'
 import StaffManagement from './pages/StaffManagement'
 import CareStations from './pages/CareStations'
+import AccountRequests from './pages/AccountRequests'
 import OrgQuery from './pages/OrgQuery'
 import SetupCredentials from './pages/SetupCredentials'
 
@@ -49,7 +50,8 @@ function AdminShell() {
               <Route path="/ai-insights" element={<AIInsights />} />
               <Route path="/logs"        element={<AuditLog />} />
               <Route path="/staff"          element={<AdminOnly><StaffManagement /></AdminOnly>} />
-              <Route path="/care-stations"  element={<SuperAdminOnly><CareStations /></SuperAdminOnly>} />
+              <Route path="/care-stations"     element={<SuperAdminOnly><CareStations /></SuperAdminOnly>} />
+              <Route path="/account-requests" element={<SuperAdminOnly><AccountRequests /></SuperAdminOnly>} />
               <Route path="/org-query"     element={<OrgQuery />} />
             </Routes>
           </main>

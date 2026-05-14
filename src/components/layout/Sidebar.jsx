@@ -1,17 +1,18 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, UserCheck, Users, BookOpen, DollarSign, Brain, History, ShieldCheck, Building2 } from 'lucide-react'
+import { LayoutDashboard, UserCheck, Users, BookOpen, DollarSign, Brain, History, ShieldCheck, Building2, ClipboardList } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 const NAV_ITEMS = [
-  { to: '/',               icon: LayoutDashboard, label: '首頁儀表板',   adminOnly: false, superAdminOnly: false },
-  { to: '/checkin',        icon: UserCheck,       label: '數位簽到',     adminOnly: false, superAdminOnly: false },
-  { to: '/members',        icon: Users,           label: '長者管理',     adminOnly: false, superAdminOnly: false },
-  { to: '/courses',        icon: BookOpen,        label: '課程管理',     adminOnly: false, superAdminOnly: false },
-  { to: '/finance',        icon: DollarSign,      label: '財務追蹤',     adminOnly: false, superAdminOnly: false },
-  { to: '/ai-insights',    icon: Brain,           label: 'AI 關懷洞察', adminOnly: false, superAdminOnly: false },
-  { to: '/logs',           icon: History,         label: '操作記錄',     adminOnly: true,  superAdminOnly: false },
-  { to: '/care-stations',  icon: Building2,       label: '關懷站資訊',   adminOnly: false, superAdminOnly: true  },
-  { to: '/staff',          icon: ShieldCheck,     label: '帳號管理',     adminOnly: true,  superAdminOnly: false },
+  { to: '/',                  icon: LayoutDashboard, label: '首頁儀表板',   adminOnly: false, superAdminOnly: false },
+  { to: '/checkin',           icon: UserCheck,       label: '數位簽到',     adminOnly: false, superAdminOnly: false },
+  { to: '/members',           icon: Users,           label: '長者管理',     adminOnly: false, superAdminOnly: false },
+  { to: '/courses',           icon: BookOpen,        label: '課程管理',     adminOnly: false, superAdminOnly: false },
+  { to: '/finance',           icon: DollarSign,      label: '財務追蹤',     adminOnly: false, superAdminOnly: false },
+  { to: '/ai-insights',       icon: Brain,           label: 'AI 關懷洞察', adminOnly: false, superAdminOnly: false },
+  { to: '/logs',              icon: History,         label: '操作記錄',     adminOnly: true,  superAdminOnly: false },
+  { to: '/care-stations',     icon: Building2,       label: '關懷站資訊',   adminOnly: false, superAdminOnly: true  },
+  { to: '/account-requests',  icon: ClipboardList,   label: '帳號申請管理', adminOnly: false, superAdminOnly: true  },
+  { to: '/staff',             icon: ShieldCheck,     label: '帳號管理',     adminOnly: true,  superAdminOnly: false },
 ]
 
 export default function Sidebar() {

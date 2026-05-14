@@ -97,3 +97,19 @@ export async function submitAccountRequest({ org_id, org_name, name, email, phon
     .insert({ org_id: org_id || null, org_name, name, email, phone })
   if (error) throw error
 }
+
+export async function getAccountRequests() {
+  const { data } = await supabase
+    .from('account_requests')
+    .select('*')
+    .order('submitted_at', { ascending: false })
+  return data ?? []
+}
+
+export async function updateAccountRequest(id, updates) {
+  const { error } = await supabase
+    .from('account_requests')
+    .update(updates)
+    .eq('id', id)
+  if (error) throw error
+}
