@@ -364,12 +364,12 @@ export default function Members() {
                   {(m.tags ?? []).filter(tag => tag !== '高風險').map(tag => (
                     <span key={tag} className={`text-xs px-2 py-0.5 rounded-full font-medium ${TAG_COLORS[tag] ?? 'bg-gray-100 text-gray-600'}`}>{tag}</span>
                   ))}
-                  {isLongAbsent(m.last_seen) && (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">久未出席</span>
-                  )}
-                  {inactive && (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">久未參與</span>
-                  )}
+                  {inactive
+                    ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">久未參與</span>
+                    : isLongAbsent(m.last_seen) && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">久未出席</span>
+                      )
+                  }
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${risk.bg} ${risk.text}`}>{risk.label}</span>
                 </div>
                 <div className="text-xs text-gray-500 space-y-1">
