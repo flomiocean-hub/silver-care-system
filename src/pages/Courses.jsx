@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X, CalendarDays, Archive, Pencil, Sparkles, ArrowUpDown } from 'lucide-react'
+import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X, CalendarDays, Archive, Pencil, Sparkles, ArrowUpDown, Phone } from 'lucide-react'
 import { calcProRatedFee } from '../utils/billing'
 import { isExpired } from '../utils/courseUtils'
 import CourseCalendar from '../components/CourseCalendar'
@@ -497,6 +497,46 @@ export default function Courses() {
                   : '正取學員'}
               </p>
             </div>
+
+            {(() => {
+              const m = members.find(m => m.id === memberModal.enrollment.member_id)
+              const phone = m?.mobile || memberModal.enrollment.phone
+              if (!m && !phone) return null
+              return (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">聯絡資料</p>
+                  {phone && (
+                    <a href={`tel:${phone}`}
+                      className="flex items-center gap-3 px-3 py-2 bg-green-50 rounded-xl hover:bg-green-100 transition-colors">
+                      <Phone className="w-4 h-4 text-green-600 shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-400">手機</p>
+                        <p className="text-sm font-medium text-gray-800">{phone}</p>
+                      </div>
+                    </a>
+                  )}
+                  {m?.home_phone && (
+                    <a href={`tel:${m.home_phone}`}
+                      className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                      <Phone className="w-4 h-4 text-gray-500 shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-400">家用電話</p>
+                        <p className="text-sm font-medium text-gray-800">{m.home_phone}</p>
+                      </div>
+                    </a>
+                  )}
+                  {m?.emergency_contact && (
+                    <div className="flex items-start gap-3 px-3 py-2 bg-red-50 rounded-xl">
+                      <Phone className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs text-red-400 font-medium">緊急聯絡人</p>
+                        <p className="text-sm text-gray-700">{m.emergency_contact}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* 課程費 */}
             {memberModal.course.total_fee > 0 && (
