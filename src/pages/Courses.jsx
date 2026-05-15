@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X, CalendarDays, Archive, Pencil, Sparkles } from 'lucide-react'
+import { BookOpen, Users, Calculator, Download, Plus, Clock, Link, Check, Loader2, Trash2, X, CalendarDays, Archive, Pencil, Sparkles, ArrowUpDown } from 'lucide-react'
 import { calcProRatedFee } from '../utils/billing'
 import { isExpired } from '../utils/courseUtils'
 import CourseCalendar from '../components/CourseCalendar'
@@ -46,6 +46,7 @@ export default function Courses() {
   const [enrollPaid, setEnrollPaid]       = useState('')
   const [adminOverride, setAdminOverride] = useState(false)
   const [view, setView] = useState('list') // 'list' | 'calendar' | 'expired'
+  const [sortBy, setSortBy] = useState('date_asc')
   const [aiDescLoading, setAiDescLoading]       = useState(false)
   const [aiOutcomeLoading, setAiOutcomeLoading] = useState(false)
   const [editTarget, setEditTarget] = useState(null)
@@ -689,6 +690,18 @@ export default function Courses() {
               <Archive className="w-3.5 h-3.5" /> 過期
             </button>
           </div>
+          {view === 'list' && (
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 rounded-xl text-sm">
+              <ArrowUpDown className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+                className="bg-transparent text-gray-700 font-medium focus:outline-none cursor-pointer">
+                <option value="date_asc">開課日期（近→遠）</option>
+                <option value="date_desc">開課日期（遠→近）</option>
+                <option value="seats">剩餘名額（多→少）</option>
+                <option value="enrolled">報名人數（多→少）</option>
+              </select>
+            </div>
+          )}
           <button onClick={exportCSV}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 text-sm font-medium">
             <Download className="w-4 h-4" /> 匯出
@@ -806,7 +819,13 @@ export default function Courses() {
       {view === 'expired' && <ExpiredCourseView courses={courses} />}
 
       {view === 'list' && <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {courses.filter(c => !isExpired(c)).map(c => {
+        {[...courses.filter(c => !isExpired(c))].sort((a, b) => {
+          if (sortBy === 'date_asc')  return (a.start_date ?? '9999').localeCompare(b.start_date ?? '9999')
+          if (sortBy === 'date_desc') return (b.start_date ?? '').localeCompare(a.start_date ?? '')
+          if (sortBy === 'seats')     return (b.capacity - b.enrolled) - (a.capacity - a.enrolled)
+          if (sortBy === 'enrolled')  return b.enrolled - a.enrolled
+          return 0
+        }).map(c => {
           const enrolled = getEnrolled(c.id)
           const waitlist = getWaitlist(c.id)
           const isFull = c.enrolled >= c.capacity
