@@ -10,6 +10,7 @@ import { useAudit } from '../contexts/AuditContext'
 import { useAuth } from '../contexts/AuthContext'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
 import { getCourses, addCourse, updateCourse, getEnrollments, addEnrollment, updateCourseCount, deleteCourse, deleteEnrollment, updateEnrollmentPayment, updateEnrollmentMaterialPaid } from '../services/api/courses'
+import { getMembers } from '../services/api/members'
 
 const DAY_OPTIONS  = ['週一','週二','週三','週四','週五','週六','週日']
 const TIME_OPTIONS = ['上午','下午']
@@ -38,9 +39,11 @@ export default function Courses() {
   const [calcInput, setCalcInput]   = useState({ totalFee: 200, totalSessions: 4, remaining: 2 })
   const [showForm, setShowForm]     = useState(false)
   const [form, setForm]             = useState(emptyForm)
-  const [enrollModal, setEnrollModal] = useState(null)
-  const [enrollName, setEnrollName] = useState('')
-  const [enrollPaid, setEnrollPaid] = useState('')
+  const [members, setMembers]             = useState([])
+  const [enrollModal, setEnrollModal]     = useState(null)
+  const [enrollMember, setEnrollMember]   = useState(null)
+  const [memberSearch, setMemberSearch]   = useState('')
+  const [enrollPaid, setEnrollPaid]       = useState('')
   const [adminOverride, setAdminOverride] = useState(false)
   const [view, setView] = useState('list') // 'list' | 'calendar' | 'expired'
   const [aiDescLoading, setAiDescLoading]       = useState(false)
@@ -51,9 +54,10 @@ export default function Courses() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [c, e] = await Promise.all([getCourses(), getEnrollments()])
+    const [c, e, m] = await Promise.all([getCourses(), getEnrollments(), getMembers()])
     setCourses(c)
     setEnrollments(e)
+    setMembers(m)
     setLoading(false)
   }, [])
 
@@ -114,9 +118,9 @@ export default function Courses() {
   }
 
   async function handleEnroll() {
-    if (!enrollName.trim() || !enrollModal) return
+    if (!enrollMember || !enrollModal) return
     const course = courses.find(c => c.id === enrollModal)
-    const existing = enrollments.find(e => e.course_id === enrollModal && e.member_name === enrollName.trim())
+    const existing = enrollments.find(e => e.course_id === enrollModal && e.member_id === enrollMember.id)
     if (existing) return
 
     const isFull = course.enrolled >= course.capacity
@@ -125,8 +129,8 @@ export default function Courses() {
 
     const waitlistCount = getWaitlist(enrollModal).length
     const newEntry = {
-      member_id: null,
-      member_name: enrollName.trim(),
+      member_id: enrollMember.id,
+      member_name: enrollMember.name,
       course_id: enrollModal,
       sessions_remaining: course.total_sessions,
       total_paid: Number(enrollPaid) || 0,
@@ -140,11 +144,12 @@ export default function Courses() {
     addLog({
       action: '新增',
       module: '課程管理',
-      target: `${enrollName.trim()} → ${course.name}`,
+      target: `${enrollMember.name} → ${course.name}`,
       detail: isFull ? `加入候補名單（後補${waitlistCount + 1}）` : `完成報名・繳費 ${Number(enrollPaid) || 0} 元`,
     })
     setEnrollModal(null)
-    setEnrollName('')
+    setEnrollMember(null)
+    setMemberSearch('')
     setEnrollPaid('')
     setAdminOverride(false)
     await load()
@@ -584,21 +589,62 @@ export default function Courses() {
         </div>
       )}
       {enrollModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-80 space-y-4">
-            <h3 className="font-semibold text-gray-700">報名課程</h3>
-            <div>
-              <label className="text-xs text-gray-500 block mb-1">長者姓名（全名）</label>
-              <input value={enrollName} onChange={e => setEnrollName(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="輸入姓名，系統自動比對" autoFocus />
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-700">報名課程</h3>
+              <button onClick={() => { setEnrollModal(null); setEnrollMember(null); setMemberSearch(''); setEnrollPaid('') }}
+                className="p-1 text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
             </div>
+
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">選擇長者</label>
+              {enrollMember ? (
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
+                  <span className="text-sm font-medium text-green-800">{enrollMember.name}</span>
+                  <button onClick={() => { setEnrollMember(null); setMemberSearch('') }}
+                    className="text-green-400 hover:text-green-600 ml-2">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <input
+                    value={memberSearch}
+                    onChange={e => setMemberSearch(e.target.value)}
+                    placeholder="輸入姓名搜尋…"
+                    autoFocus
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  {memberSearch.trim() && (
+                    <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
+                      {members.filter(m => m.name.includes(memberSearch.trim())).slice(0, 10).length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-3">找不到符合的長者</p>
+                      ) : (
+                        members.filter(m => m.name.includes(memberSearch.trim())).slice(0, 10).map(m => (
+                          <button key={m.id}
+                            onClick={() => { setEnrollMember(m); setMemberSearch('') }}
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-green-50 flex items-center justify-between">
+                            <span className="font-medium">{m.name}</span>
+                            <span className="text-xs text-gray-400">{m.id}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="text-xs text-gray-500 block mb-1">現場繳費金額（元）</label>
               <input type="number" value={enrollPaid} onChange={e => setEnrollPaid(e.target.value)}
                 className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 placeholder="支援部分繳費" />
             </div>
+
             {(() => {
               const course = courses.find(c => c.id === enrollModal)
               const isPastStart = course?.start_date && new Date() > new Date(course.start_date)
@@ -609,12 +655,13 @@ export default function Courses() {
                 </div>
               ) : null
             })()}
+
             <div className="flex gap-2">
-              <button onClick={handleEnroll} disabled={saving}
-                className="flex-1 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light transition-colors disabled:opacity-60 flex items-center justify-center gap-1">
+              <button onClick={handleEnroll} disabled={saving || !enrollMember}
+                className="flex-1 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary-light transition-colors disabled:opacity-50 flex items-center justify-center gap-1">
                 {saving && <Loader2 className="w-3 h-3 animate-spin" />} 確認報名
               </button>
-              <button onClick={() => { setEnrollModal(null); setEnrollName(''); setEnrollPaid('') }}
+              <button onClick={() => { setEnrollModal(null); setEnrollMember(null); setMemberSearch(''); setEnrollPaid('') }}
                 className="flex-1 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium">取消</button>
             </div>
           </div>

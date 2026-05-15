@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Calendar, Clock, User, Users, BookOpen, CheckCircle, AlertCircle, MapPin, DollarSign, Loader2, Phone, X } from 'lucide-react'
 import { getCourses, getEnrollments, addEnrollment, updateCourseCount } from '../services/api/courses'
-import { getMembersByIds } from '../services/api/members'
+import { getMembersByIds, findMembersByName, updateMember } from '../services/api/members'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function CourseRegister() {
@@ -15,9 +15,10 @@ export default function CourseRegister() {
   const [saving, setSaving]         = useState(false)
   const [name, setName]             = useState('')
   const [phone, setPhone]           = useState('')
-  const [submitted, setSubmitted]   = useState(null)
-  const [error, setError]           = useState('')
+  const [submitted, setSubmitted]     = useState(null)
+  const [error, setError]             = useState('')
   const [contactCard, setContactCard] = useState(null)
+  const [phoneConfirm, setPhoneConfirm] = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -64,6 +65,24 @@ export default function CourseRegister() {
   const remaining = course.capacity - enrolled.length
   const isFull    = remaining <= 0
 
+  async function performEnroll(memberId, memberName, enrollPhone) {
+    const waitlistNo = isFull ? waitlist.length + 1 : null
+    await addEnrollment({
+      member_id:          memberId,
+      member_name:        memberName,
+      phone:              enrollPhone || null,
+      course_id:          courseId,
+      sessions_remaining: course.total_sessions,
+      total_paid:         0,
+      total_fee:          course.total_fee,
+      is_waitlist:        isFull,
+      waitlist_no:        waitlistNo,
+    })
+    await updateCourseCount(courseId, isFull ? 'waitlist' : 'enrolled', 1)
+    setSubmitted({ type: isFull ? 'waitlist' : 'enrolled', no: waitlistNo })
+    setSaving(false)
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
@@ -73,21 +92,59 @@ export default function CourseRegister() {
     if (alreadyIn) { setError('此姓名已報名，請聯繫據點確認'); return }
 
     setSaving(true)
-    const waitlistNo = isFull ? waitlist.length + 1 : null
-    await addEnrollment({
-      member_id: null,
-      member_name: name.trim(),
-      phone: phone.trim() || null,
-      course_id: courseId,
-      sessions_remaining: course.total_sessions,
-      total_paid: 0,
-      total_fee: course.total_fee,
-      is_waitlist: isFull,
-      waitlist_no: waitlistNo,
-    })
-    await updateCourseCount(courseId, isFull ? 'waitlist' : 'enrolled', 1)
-    setSubmitted({ type: isFull ? 'waitlist' : 'enrolled', no: waitlistNo })
-    setSaving(false)
+
+    const matches = await findMembersByName(name.trim(), course.org_id)
+
+    if (matches.length === 0) {
+      await performEnroll(null, name.trim(), phone.trim())
+      return
+    }
+
+    if (matches.length >= 2) {
+      // 同名多筆：以電話再次比對
+      const byPhone = matches.find(m => m.mobile && phone.trim() && m.mobile === phone.trim())
+      if (byPhone) {
+        await performEnroll(byPhone.id, byPhone.name, phone.trim())
+      } else {
+        await performEnroll(null, name.trim(), phone.trim())
+      }
+      return
+    }
+
+    // 單一比對
+    const member = matches[0]
+    const memberPhone = member.mobile ?? ''
+    const inputPhone  = phone.trim()
+
+    if (!memberPhone && inputPhone) {
+      await updateMember(member.id, { mobile: inputPhone })
+      await performEnroll(member.id, member.name, inputPhone)
+    } else if (!inputPhone || memberPhone === inputPhone) {
+      await performEnroll(member.id, member.name, inputPhone || memberPhone)
+    } else {
+      setSaving(false)
+      setPhoneConfirm({ member, newPhone: inputPhone })
+    }
+  }
+
+  async function handlePhoneConfirmYes() {
+    if (!phoneConfirm) return
+    setSaving(true)
+    await updateMember(phoneConfirm.member.id, { mobile: phoneConfirm.newPhone })
+    await performEnroll(phoneConfirm.member.id, phoneConfirm.member.name, phoneConfirm.newPhone)
+    setPhoneConfirm(null)
+  }
+
+  async function handlePhoneConfirmNo() {
+    if (!phoneConfirm) return
+    setSaving(true)
+    await performEnroll(phoneConfirm.member.id, phoneConfirm.member.name, phoneConfirm.member.mobile)
+    setPhoneConfirm(null)
+  }
+
+  function maskPhone(p) {
+    if (!p || p.length < 4) return p
+    return p.slice(0, -3) + '***'
   }
 
   if (submitted) {
@@ -346,6 +403,36 @@ export default function CourseRegister() {
       <div className="text-center py-6 text-xs text-gray-300">
         銀髮關懷據點智慧管理系統
       </div>
+
+      {phoneConfirm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-semibold text-gray-800">電話號碼不同</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              您輸入的電話
+              <span className="font-semibold text-gray-800 mx-1">{phoneConfirm.newPhone}</span>
+              與上次登記的電話
+              <span className="font-semibold text-gray-800 mx-1">{maskPhone(phoneConfirm.member.mobile)}</span>
+              不同。<br />是否要更新聯絡電話？
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handlePhoneConfirmYes}
+                disabled={saving}
+                className="flex-1 py-3 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary-light disabled:opacity-50 flex items-center justify-center gap-2">
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                是，更新電話
+              </button>
+              <button
+                onClick={handlePhoneConfirmNo}
+                disabled={saving}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 disabled:opacity-50">
+                否，維持原電話
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

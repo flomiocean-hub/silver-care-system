@@ -30,3 +30,12 @@ export async function getMembersByIds(ids) {
     .in('id', ids)
   return data ?? []
 }
+
+export async function findMembersByName(name, orgId) {
+  const { data } = await supabase
+    .from('members')
+    .select('id, name, mobile, home_phone')
+    .eq('org_id', orgId)
+    .eq('name', name.trim())
+  return data ?? []
+}
