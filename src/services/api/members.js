@@ -21,3 +21,12 @@ export async function deleteMember(id) {
   const { error } = await supabase.from('members').delete().eq('id', id).eq('org_id', getOrgId())
   if (error) throw error
 }
+
+export async function getMembersByIds(ids) {
+  if (!ids || ids.length === 0) return []
+  const { data } = await supabase
+    .from('members')
+    .select('id, name, mobile, home_phone, emergency_contact')
+    .in('id', ids)
+  return data ?? []
+}

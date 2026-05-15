@@ -1,28 +1,43 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { Calendar, Clock, User, Users, BookOpen, CheckCircle, AlertCircle, MapPin, DollarSign, Loader2 } from 'lucide-react'
+import { Calendar, Clock, User, Users, BookOpen, CheckCircle, AlertCircle, MapPin, DollarSign, Loader2, Phone, X } from 'lucide-react'
 import { getCourses, getEnrollments, addEnrollment, updateCourseCount } from '../services/api/courses'
+import { getMembersByIds } from '../services/api/members'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function CourseRegister() {
   const { courseId } = useParams()
+  const { user }     = useAuth()
   const [course, setCourse]         = useState(null)
   const [enrollments, setEnrollments] = useState([])
+  const [memberMap, setMemberMap]   = useState({})
   const [loading, setLoading]       = useState(true)
   const [saving, setSaving]         = useState(false)
   const [name, setName]             = useState('')
   const [phone, setPhone]           = useState('')
   const [submitted, setSubmitted]   = useState(null)
   const [error, setError]           = useState('')
+  const [contactCard, setContactCard] = useState(null)
 
   useEffect(() => {
     async function load() {
       const [courses, enrs] = await Promise.all([getCourses(), getEnrollments()])
-      setCourse(courses.find(c => c.id === courseId) ?? null)
-      setEnrollments(enrs.filter(e => e.course_id === courseId))
+      const course = courses.find(c => c.id === courseId) ?? null
+      const filtered = enrs.filter(e => e.course_id === courseId)
+      setCourse(course)
+      setEnrollments(filtered)
+
+      if (user) {
+        const memberIds = [...new Set(filtered.map(e => e.member_id).filter(Boolean))]
+        if (memberIds.length > 0) {
+          const members = await getMembersByIds(memberIds)
+          setMemberMap(Object.fromEntries(members.map(m => [m.id, m])))
+        }
+      }
       setLoading(false)
     }
     load()
-  }, [courseId])
+  }, [courseId, user])
 
   if (loading) {
     return (
@@ -62,6 +77,7 @@ export default function CourseRegister() {
     await addEnrollment({
       member_id: null,
       member_name: name.trim(),
+      phone: phone.trim() || null,
       course_id: courseId,
       sessions_remaining: course.total_sessions,
       total_paid: 0,
@@ -188,28 +204,103 @@ export default function CourseRegister() {
             <Users className="w-4 h-4 text-primary" />
             已報名學員（{enrolled.length} 人）
           </h2>
+          {user && (
+            <p className="text-xs text-green-600 bg-green-50 rounded-lg px-3 py-1.5 mb-3 inline-flex items-center gap-1">
+              <Phone className="w-3 h-3" /> 點擊姓名可查看聯絡資料
+            </p>
+          )}
           {enrolled.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-4">尚無人報名，成為第一位！</p>
           ) : (
             <div className="grid grid-cols-3 gap-2">
-              {enrolled.map((e, i) => (
-                <div key={e.id} className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2">
-                  <span className="text-xs text-green-400 font-mono w-4 shrink-0">{i + 1}</span>
-                  <span className="text-sm text-green-800 font-medium truncate">{e.member_name}</span>
-                </div>
-              ))}
+              {enrolled.map((e, i) => {
+                const member = memberMap[e.member_id]
+                const hasContact = user && (member?.mobile || member?.home_phone || e.phone)
+                return (
+                  <div key={e.id}
+                    onClick={() => hasContact && setContactCard({ enrollment: e, member })}
+                    className={`flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2 ${hasContact ? 'cursor-pointer hover:bg-green-100 active:scale-95 transition-all' : ''}`}>
+                    <span className="text-xs text-green-400 font-mono w-4 shrink-0">{i + 1}</span>
+                    <span className="text-sm text-green-800 font-medium truncate">{e.member_name}</span>
+                    {hasContact && <Phone className="w-3 h-3 text-green-400 shrink-0 ml-auto" />}
+                  </div>
+                )
+              })}
             </div>
           )}
           {waitlist.length > 0 && (
             <div className="mt-4 pt-4 border-t border-gray-100">
               <p className="text-xs text-amber-600 font-semibold mb-2">後補名單</p>
               <div className="grid grid-cols-3 gap-2">
-                {waitlist.map(e => (
-                  <div key={e.id} className="flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-                    <span className="text-xs text-amber-400 font-mono w-6 shrink-0">後{e.waitlist_no}</span>
-                    <span className="text-sm text-amber-800 truncate">{e.member_name}</span>
-                  </div>
-                ))}
+                {waitlist.map(e => {
+                  const member = memberMap[e.member_id]
+                  const hasContact = user && (member?.mobile || member?.home_phone || e.phone)
+                  return (
+                    <div key={e.id}
+                      onClick={() => hasContact && setContactCard({ enrollment: e, member })}
+                      className={`flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 ${hasContact ? 'cursor-pointer hover:bg-amber-100 transition-colors' : ''}`}>
+                      <span className="text-xs text-amber-400 font-mono w-6 shrink-0">後{e.waitlist_no}</span>
+                      <span className="text-sm text-amber-800 truncate">{e.member_name}</span>
+                      {hasContact && <Phone className="w-3 h-3 text-amber-400 shrink-0 ml-auto" />}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 聯絡資訊 Popup */}
+          {contactCard && (
+            <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4"
+              onClick={() => setContactCard(null)}>
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-xs p-5"
+                onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-800">{contactCard.enrollment.member_name}</h3>
+                  <button onClick={() => setContactCard(null)}
+                    className="p-1 hover:bg-gray-100 rounded-lg">
+                    <X className="w-4 h-4 text-gray-400" />
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {(contactCard.member?.mobile || contactCard.member?.home_phone || contactCard.enrollment.phone) ? (
+                    <>
+                      {(contactCard.member?.mobile || contactCard.enrollment.phone) && (
+                        <a href={`tel:${contactCard.member?.mobile ?? contactCard.enrollment.phone}`}
+                          className="flex items-center gap-3 p-3 bg-green-50 rounded-xl hover:bg-green-100 transition-colors">
+                          <Phone className="w-4 h-4 text-green-600 shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-400">手機</p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {contactCard.member?.mobile ?? contactCard.enrollment.phone}
+                            </p>
+                          </div>
+                        </a>
+                      )}
+                      {contactCard.member?.home_phone && (
+                        <a href={`tel:${contactCard.member.home_phone}`}
+                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                          <Phone className="w-4 h-4 text-gray-500 shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-400">家用電話</p>
+                            <p className="text-sm font-medium text-gray-800">{contactCard.member.home_phone}</p>
+                          </div>
+                        </a>
+                      )}
+                      {contactCard.member?.emergency_contact && (
+                        <div className="flex items-start gap-3 p-3 bg-red-50 rounded-xl">
+                          <Phone className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-red-400 font-medium">緊急聯絡人</p>
+                            <p className="text-sm text-gray-700">{contactCard.member.emergency_contact}</p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-400 text-center py-4">此學員未留聯絡電話</p>
+                  )}
+                </div>
               </div>
             </div>
           )}
