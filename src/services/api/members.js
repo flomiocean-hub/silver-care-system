@@ -32,10 +32,20 @@ export async function getMembersByIds(ids) {
 }
 
 export async function findMembersByName(name, orgId) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('members')
-    .select('id, name, mobile, home_phone')
+    .select('id, name, mobile, home_phone, org_id')
     .eq('org_id', orgId)
     .eq('name', name.trim())
+  if (error) console.error('[findMembersByName] Supabase error:', error)
   return data ?? []
+}
+
+export async function updateMemberPhone(id, orgId, mobile) {
+  const { error } = await supabase
+    .from('members')
+    .update({ mobile, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('org_id', orgId)
+  if (error) throw error
 }

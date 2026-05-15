@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Calendar, Clock, User, Users, BookOpen, CheckCircle, AlertCircle, MapPin, DollarSign, Loader2, Phone, X } from 'lucide-react'
 import { getCourses, getEnrollments, addEnrollment, updateCourseCount } from '../services/api/courses'
-import { getMembersByIds, findMembersByName, updateMember } from '../services/api/members'
+import { getMembersByIds, findMembersByName, updateMemberPhone } from '../services/api/members'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function CourseRegister() {
@@ -117,7 +117,7 @@ export default function CourseRegister() {
     const inputPhone  = phone.trim()
 
     if (!memberPhone && inputPhone) {
-      await updateMember(member.id, { mobile: inputPhone })
+      await updateMemberPhone(member.id, member.org_id, inputPhone)
       await performEnroll(member.id, member.name, inputPhone)
     } else if (!inputPhone || memberPhone === inputPhone) {
       await performEnroll(member.id, member.name, inputPhone || memberPhone)
@@ -130,7 +130,7 @@ export default function CourseRegister() {
   async function handlePhoneConfirmYes() {
     if (!phoneConfirm) return
     setSaving(true)
-    await updateMember(phoneConfirm.member.id, { mobile: phoneConfirm.newPhone })
+    await updateMemberPhone(phoneConfirm.member.id, phoneConfirm.member.org_id, phoneConfirm.newPhone)
     await performEnroll(phoneConfirm.member.id, phoneConfirm.member.name, phoneConfirm.newPhone)
     setPhoneConfirm(null)
   }
