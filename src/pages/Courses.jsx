@@ -13,7 +13,7 @@ import { getCourses, addCourse, updateCourse, getEnrollments, addEnrollment, upd
 import { getMembers } from '../services/api/members'
 
 const DAY_OPTIONS  = ['週一','週二','週三','週四','週五','週六','週日']
-const TIME_OPTIONS = ['上午','下午']
+const TIME_OPTIONS = ['上午','下午','09:00','10:00','11:00','13:00','14:00','15:00']
 
 const emptyForm = {
   name: '', session: 'A', instructor: '', description: '', expected_outcome: '',
@@ -376,11 +376,16 @@ export default function Courses() {
               {/* 時間 */}
               <div>
                 <label className="text-xs text-gray-500 block mb-1">時間</label>
-                <select value={editForm.time}
+                <input
+                  list="time-options-edit"
+                  value={editForm.time}
                   onChange={e => setEditForm(p => ({ ...p, time: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-white">
-                  {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                  placeholder="上午 / 下午 / 09:00…"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <datalist id="time-options-edit">
+                  {TIME_OPTIONS.map(t => <option key={t} value={t} />)}
+                </datalist>
               </div>
 
               {/* 名額上限 */}
@@ -783,10 +788,16 @@ export default function Courses() {
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">時間</label>
-              <select value={form.time} onChange={e => setForm(p => ({ ...p, time: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-white">
-                {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <input
+                list="time-options"
+                value={form.time}
+                onChange={e => setForm(p => ({ ...p, time: e.target.value }))}
+                placeholder="上午 / 下午 / 09:00…"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <datalist id="time-options">
+                {TIME_OPTIONS.map(t => <option key={t} value={t} />)}
+              </datalist>
             </div>
             <div className="col-span-2">
               <div className="flex items-center justify-between mb-1">
