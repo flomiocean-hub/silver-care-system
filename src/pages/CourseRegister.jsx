@@ -161,7 +161,15 @@ export default function CourseRegister() {
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-left text-sm space-y-1">
                 <p className="font-semibold text-green-700">{course.name}（{course.session} 場）</p>
                 <p className="text-green-600">{course.day} {course.time} · {course.instructor}</p>
-                <p className="text-green-600">費用：{course.total_fee} 元 / {course.total_sessions} 堂</p>
+                {course.total_fee > 0 && (
+                  <p className="text-green-600">報名費：{course.total_fee} 元 / {course.total_sessions} 堂</p>
+                )}
+                {course.materials_fee > 0 && (
+                  <p className="text-green-600">材料費：{course.materials_fee} 元</p>
+                )}
+                {!course.total_fee && !course.materials_fee && (
+                  <p className="text-green-600">費用：免費</p>
+                )}
               </div>
               <p className="text-xs text-gray-400 mt-4">請至現場繳費，完成報名確認</p>
             </>
@@ -208,9 +216,19 @@ export default function CourseRegister() {
               <Clock className="w-4 h-4 text-gray-400 shrink-0" />
               <span>{course.time}</span>
             </div>
-            <div className="flex items-center gap-2 text-gray-600">
-              <DollarSign className="w-4 h-4 text-gray-400 shrink-0" />
-              <span>{course.total_fee} 元 / {course.total_sessions} 堂</span>
+            <div className="flex items-start gap-2 text-gray-600 col-span-2">
+              <DollarSign className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                {course.total_fee > 0 && (
+                  <p>報名費：{course.total_fee} 元 / {course.total_sessions} 堂</p>
+                )}
+                {course.materials_fee > 0 && (
+                  <p>材料費：{course.materials_fee} 元</p>
+                )}
+                {!course.total_fee && !course.materials_fee && (
+                  <p>免費</p>
+                )}
+              </div>
             </div>
             {course.start_date && (
               <div className="flex items-center gap-2 text-gray-600 col-span-2">
