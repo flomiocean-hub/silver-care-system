@@ -894,7 +894,10 @@ export default function Courses() {
                     <span className={`text-xs font-medium px-2 py-1 rounded-full ${isFull ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
                       {isFull ? `額滿` : `剩 ${c.capacity - c.enrolled} 名`}
                     </span>
-                    <p className="text-xs text-gray-400 mt-1">{c.total_fee} 元 / {c.total_sessions} 堂</p>
+                    {c.total_fee > 0
+                      ? <p className="text-xs text-gray-400 mt-1">報名費 {c.total_fee} 元 / {c.total_sessions} 堂</p>
+                      : c.materials_fee <= 0 && <p className="text-xs text-gray-400 mt-1">免費</p>
+                    }
                   </div>
                   {isAdmin && (
                     <div className="flex gap-1">
