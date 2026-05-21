@@ -98,7 +98,12 @@ export default function CheckIn() {
 
   function startEdit(checkin) {
     setEditingId(checkin.id)
-    setEditVitals({ systolic: '', diastolic: '', pulse: '', weight: '' })
+    setEditVitals({
+      systolic:  checkin.systolic  ?? '',
+      diastolic: checkin.diastolic ?? '',
+      pulse:     checkin.pulse     ?? '',
+      weight:    checkin.weight    ?? '',
+    })
     setEditOcrFile(null)
     setEditOcrResult(null)
     setEditOcrLoading(false)
@@ -375,8 +380,8 @@ export default function CheckIn() {
           </h3>
 
           {(() => {
-            const pending   = checkins.filter(c => c.systolic == null)
-            const completed = checkins.filter(c => c.systolic != null)
+            const pending   = checkins.filter(c => c.systolic == null || c.weight == null)
+            const completed = checkins.filter(c => c.systolic != null && c.weight != null)
             return (
               <div className="space-y-4 max-h-[520px] overflow-y-auto">
 
@@ -396,7 +401,11 @@ export default function CheckIn() {
                               <Clock className="w-4 h-4 text-orange-400 shrink-0" />
                               <div>
                                 <p className="font-medium text-gray-800 text-sm">{c.name}</p>
-                                <p className="text-xs text-orange-400">簽到 {c.checkin_time ?? c.time}・尚未量測血壓</p>
+                                <p className="text-xs text-orange-400">
+                                  簽到 {c.checkin_time ?? c.time}・
+                                  {c.systolic == null && c.weight == null ? '尚未量測血壓・體重' :
+                                   c.systolic == null ? '尚未量測血壓' : '尚未量測體重'}
+                                </p>
                               </div>
                             </div>
                             {editingId !== c.id && (
