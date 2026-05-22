@@ -51,8 +51,8 @@ export function getBPStatus(systolic, diastolic, gender) {
   const norm = HEALTH_NORMS[gender === '男' ? 'male' : 'female']
   const val = `${systolic}/${diastolic} mmHg`
 
-  // 低血壓
-  if (systolic < 90 || diastolic < 60) {
+  // 低血壓（僅以收縮壓判斷，避免收縮期高血壓被誤判）
+  if (systolic < 90) {
     return {
       level: 'low',
       label: '低血壓',
@@ -92,6 +92,17 @@ export function getBPStatus(systolic, diastolic, gender) {
       color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-300',
       message: `血壓接近邊界值（${val}）`,
       action: '提醒長者放鬆休息、減少鹽分攝取，請確認長者有規律服藥',
+    }
+  }
+
+  // 舒張壓偏低（脈壓差過大，收縮期高血壓型態）
+  if (diastolic < 60) {
+    return {
+      level: 'border',
+      label: '脈壓異常',
+      color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-300',
+      message: `舒張壓偏低、脈壓差過大（${val}），請追蹤心血管狀況`,
+      action: '提醒長者定期回診，監測心血管狀況，確認有規律服藥',
     }
   }
 
