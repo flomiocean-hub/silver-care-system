@@ -95,8 +95,8 @@ export function getBPStatus(systolic, diastolic, gender) {
     }
   }
 
-  // 舒張壓偏低（脈壓差過大，收縮期高血壓型態）
-  if (diastolic < 60) {
+  // 脈壓差過大（收縮期高血壓型態：收縮壓偏高 + 舒張壓偏低）
+  if (diastolic < 60 && systolic >= 130) {
     return {
       level: 'border',
       label: '脈壓異常',
