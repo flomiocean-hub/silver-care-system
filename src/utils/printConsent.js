@@ -130,8 +130,14 @@ export function printConsentForm(member, orgName) {
     margin-left: 12px;
   }
   @media print {
-    body { padding: 12mm 14mm; }
+    body { padding: 10mm 14mm; line-height: 1.5; font-size: 13pt; }
     @page { size: A4; margin: 0; }
+    h2 { margin-bottom: 12px; padding-bottom: 6px; }
+    .section { margin-bottom: 10px; }
+    .sign-box { min-height: 60px; padding: 8px 12px; }
+    .footer-note { margin-top: 12px; padding-top: 8px; }
+    ol li { margin-bottom: 2px; }
+    .info-grid { gap: 6px 16px; }
   }
 </style>
 </head>
