@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, UserPlus, Trash2, Edit3, Phone, MapPin, User, Loader2, ShieldCheck, ShieldAlert, Printer } from 'lucide-react'
+import { Search, UserPlus, Trash2, Edit3, Phone, MapPin, User, Loader2, ShieldCheck, ShieldAlert, Printer, LayoutList, LayoutGrid } from 'lucide-react'
 import { getRiskLevel } from '../utils/riskScoring'
 import { toRocDate, rocToIso } from '../utils/dateUtils'
 import ConfirmDialog from '../components/layout/ConfirmDialog'
@@ -81,6 +81,17 @@ export default function Members() {
   const [deleteTarget, setDeleteTarget]         = useState(null)
   const [form, setForm]                         = useState(emptyForm)
   const [selectedMember, setSelectedMember]     = useState(null)
+  const [viewMode, setViewMode] = useState(() => {
+    const saved = localStorage.getItem('sc_member_view')
+    if (saved) return saved
+    return window.innerWidth < 768 ? 'list' : 'card'
+  })
+
+  function toggleView() {
+    const next = viewMode === 'card' ? 'list' : 'card'
+    setViewMode(next)
+    localStorage.setItem('sc_member_view', next)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -182,10 +193,17 @@ export default function Members() {
             )}
           </p>
         </div>
-        <button onClick={() => { setForm(emptyForm); setShowForm('add') }}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-light transition-colors text-sm font-medium shadow-sm">
-          <UserPlus className="w-4 h-4" /> 新增長者
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={toggleView}
+            title={viewMode === 'card' ? '切換為列表模式' : '切換為卡片模式'}
+            className="p-2 text-gray-500 hover:text-primary hover:bg-green-50 border border-gray-200 rounded-xl transition-colors">
+            {viewMode === 'card' ? <LayoutList className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+          </button>
+          <button onClick={() => { setForm(emptyForm); setShowForm('add') }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-light transition-colors text-sm font-medium shadow-sm">
+            <UserPlus className="w-4 h-4" /> 新增長者
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -325,7 +343,8 @@ export default function Members() {
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
         </div>
-      ) : (
+      ) : viewMode === 'card' ? (
+        /* ── 卡片模式 ── */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map(m => {
             const risk = getRiskLevel(m.risk_score)
@@ -401,6 +420,86 @@ export default function Members() {
                     <span className="flex items-center gap-1 text-xs text-amber-500 shrink-0">
                       <ShieldAlert className="w-3.5 h-3.5" /> 未簽
                     </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        /* ── 列表模式 ── */
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* 表頭（桌機才顯示） */}
+          <div className="hidden md:grid grid-cols-[2fr_1fr_2fr_1fr_auto] gap-4 px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500">
+            <span>姓名</span>
+            <span>最後出席</span>
+            <span>標籤</span>
+            <span>風險 / 同意</span>
+            <span></span>
+          </div>
+
+          {filtered.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-10">查無符合條件的長者</p>
+          )}
+
+          {filtered.map((m, idx) => {
+            const risk    = getRiskLevel(m.risk_score)
+            const inactive = isLongInactive(m, lastEnrollmentMap)
+            return (
+              <div key={m.id}
+                onClick={() => setSelectedMember(m)}
+                className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${idx !== 0 ? 'border-t border-gray-100' : ''}`}>
+
+                {/* 頭像 */}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${risk.bg} shrink-0`}>
+                  <User className={`w-4 h-4 ${risk.text}`} />
+                </div>
+
+                {/* 姓名區 */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-gray-800 text-sm">{m.name}</span>
+                    <span className="text-xs text-gray-400">{m.id}</span>
+                    <span className="text-xs text-gray-400 hidden sm:inline">{m.gender}・{m.member_type}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {(m.tags ?? []).filter(tag => tag !== '高風險').map(tag => (
+                      <span key={tag} className={`text-xs px-1.5 py-0 rounded-full font-medium ${TAG_COLORS[tag] ?? 'bg-gray-100 text-gray-600'}`}>{tag}</span>
+                    ))}
+                    {inactive
+                      ? <span className="text-xs px-1.5 py-0 rounded-full font-medium bg-amber-100 text-amber-700">久未參與</span>
+                      : isLongAbsent(m.last_seen) && (
+                          <span className="text-xs px-1.5 py-0 rounded-full font-medium bg-gray-100 text-gray-600">久未出席</span>
+                        )
+                    }
+                    <span className={`text-xs px-1.5 py-0 rounded-full font-medium ${risk.bg} ${risk.text}`}>{risk.label}</span>
+                  </div>
+                </div>
+
+                {/* 最後出席（桌機顯示完整，手機縮） */}
+                <div className="text-xs text-gray-400 shrink-0 hidden sm:block">
+                  {m.last_seen ?? '未出席'}
+                </div>
+
+                {/* 同意書狀態 */}
+                <div className="shrink-0">
+                  {m.consent_signed
+                    ? <ShieldCheck className="w-4 h-4 text-green-500" />
+                    : <ShieldAlert className="w-4 h-4 text-amber-400" />
+                  }
+                </div>
+
+                {/* 操作 */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={e => { e.stopPropagation(); startEdit(m) }}
+                    className="p-1.5 text-gray-400 hover:text-primary hover:bg-green-50 rounded-lg transition-colors">
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                  {isAdmin && (
+                    <button onClick={e => { e.stopPropagation(); setDeleteTarget(m) }}
+                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   )}
                 </div>
               </div>
