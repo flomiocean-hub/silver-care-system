@@ -67,15 +67,24 @@ export default function AIInsights() {
   const membersWithHealth = members.filter(m => healthData.some(h => h.member_id === m.id))
   const selectedMember = membersWithHealth.find(m => m.id === selectedMemberId) ?? membersWithHealth[0]
 
+  const ALERT_DAYS = 30
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - ALERT_DAYS)
+  const cutoffStr = cutoff.toISOString().slice(0, 10)
+
   const aloneHighRisk = members.filter(m => m.tags?.includes('獨居') && m.risk_score >= 60)
+
   const bpAbnormal = members.filter(m => {
     const health = healthData.filter(h => h.member_id === m.id)
     if (!health.length) return false
     const latest = health[health.length - 1]
+    if (!latest.date || latest.date < cutoffStr) return false
     const norm = HEALTH_NORMS[m.gender === '男' ? 'male' : 'female']
     return latest.systolic >= norm.bp_high.systolic || latest.diastolic >= norm.bp_high.diastolic
   })
-  const weightAlerts = members.filter(m => checkWeightAlert(m, healthData)?.alert)
+
+  const recentHealth = healthData.filter(h => h.date >= cutoffStr)
+  const weightAlerts = members.filter(m => checkWeightAlert(m, recentHealth)?.alert)
 
   async function sendQuery(text) {
     if (!text.trim() || aiLoading) return
@@ -142,7 +151,7 @@ export default function AIInsights() {
 
         <div className="bg-white rounded-xl border border-amber-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-amber-700 mb-3 flex items-center gap-2">
-            <Activity className="w-4 h-4" /> 血壓異常（依性別基準）
+            <Activity className="w-4 h-4" /> 血壓異常（近 {ALERT_DAYS} 天・依性別基準）
           </h3>
           <div className="space-y-2">
             {bpAbnormal.length === 0 ? <p className="text-xs text-gray-400">目前無異常</p> :
@@ -156,6 +165,7 @@ export default function AIInsights() {
                         <p className="font-semibold text-amber-700 text-sm">{m.name} · {m.gender}</p>
                         <p className="text-xs text-amber-500">{h?.systolic}/{h?.diastolic} mmHg · 脈搏 {h?.pulse}</p>
                         <p className="text-xs text-gray-400">基準：{m.gender === '女' ? '130' : '145'} mmHg</p>
+                        <p className="text-xs text-gray-400">量測日：{h?.date}</p>
                       </div>
                       {bp && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${bp.bg} ${bp.color} self-start`}>{bp.label}</span>}
                     </div>
@@ -168,7 +178,7 @@ export default function AIInsights() {
 
         <div className="bg-white rounded-xl border border-purple-200 shadow-sm p-5">
           <h3 className="text-sm font-semibold text-purple-700 mb-3 flex items-center gap-2">
-            <Activity className="w-4 h-4" /> 體重暴跌警示
+            <Activity className="w-4 h-4" /> 體重暴跌警示（近 {ALERT_DAYS} 天）
           </h3>
           <div className="space-y-2">
             {weightAlerts.length === 0 ? <p className="text-xs text-gray-400">目前無體重異常</p> :
