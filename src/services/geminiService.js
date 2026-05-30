@@ -130,13 +130,14 @@ export async function askGeminiCourseOutcome(description) {
   }
 }
 
-// ── OCR 血壓計辨識 ────────────────────────────────────────────
+// ── OCR 健康儀器辨識 ──────────────────────────────────────────
 export async function askGeminiOCR(base64, mimeType = 'image/jpeg') {
   if (!model) return null
   const imagePart = { inlineData: { data: base64, mimeType } }
-  const prompt = `請辨識血壓計圖片中的數值，只回傳 JSON，不要任何其他文字：
-{"systolic":收縮壓,"diastolic":舒張壓,"pulse":脈搏}
-看不清楚的數值填 null。`
+  const prompt = `請辨識此健康量測儀器畫面中的數值，只回傳 JSON，不要任何其他文字：
+{"systolic":收縮壓,"diastolic":舒張壓,"pulse":脈搏,"weight":體重,"height":身高,"waist":腰圍}
+欄位說明：systolic=收縮壓(mmHg)、diastolic=舒張壓(mmHg)、pulse=心跳/脈搏(次/分)、weight=體重(kg)、height=身高(cm)、waist=腰圍(cm)。
+看不清楚或畫面中沒有的數值填 null。`
 
   try {
     const result = await model.generateContent([prompt, imagePart])

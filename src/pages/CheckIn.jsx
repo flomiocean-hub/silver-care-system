@@ -16,18 +16,19 @@ export default function CheckIn() {
   const [saving, setSaving]       = useState(false)
   const [query, setQuery]         = useState('')
   const [selected, setSelected]   = useState(null)
-  const [vitals, setVitals]       = useState({ systolic: '', diastolic: '', pulse: '', weight: '' })
+  const [vitals, setVitals]       = useState({ systolic: '', diastolic: '', pulse: '', weight: '', height: '', waist: '' })
   const [showSuccess, setShowSuccess] = useState(false)
   const [ocrFile, setOcrFile]     = useState(null)
   const [ocrResult, setOcrResult] = useState(null)
   const [ocrLoading, setOcrLoading] = useState(false)
   const [weightAlert, setWeightAlert] = useState(null)
   const [editingId, setEditingId]     = useState(null)
-  const [editVitals, setEditVitals]   = useState({ systolic: '', diastolic: '', pulse: '', weight: '' })
+  const [editVitals, setEditVitals]   = useState({ systolic: '', diastolic: '', pulse: '', weight: '', height: '', waist: '' })
   const [editSaving, setEditSaving]   = useState(false)
   const [editOcrFile, setEditOcrFile]     = useState(null)
   const [editOcrResult, setEditOcrResult] = useState(null)
   const [editOcrLoading, setEditOcrLoading] = useState(false)
+  const [lastHeight, setLastHeight] = useState(null) // { value, date } 上次記錄的身高
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -47,11 +48,19 @@ export default function CheckIn() {
       )
     : []
 
+  function getLastKnownHeight(memberId, beforeDate) {
+    const records = healthData
+      .filter(r => r.member_id === memberId && r.height != null && (!beforeDate || r.date < beforeDate))
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+    return records.length > 0 ? { value: records[0].height, date: records[0].date } : null
+  }
+
   function handleSelect(m) {
     setSelected(m)
     setQuery(m.name)
     setOcrResult(null)
     setWeightAlert(null)
+    setLastHeight(getLastKnownHeight(m.id))
   }
 
   function handleVitalChange(field, value) {
@@ -74,6 +83,8 @@ export default function CheckIn() {
         diastolic: vitals.diastolic ? Number(vitals.diastolic) : null,
         pulse: vitals.pulse ? Number(vitals.pulse) : null,
         weight: vitals.weight ? Number(vitals.weight) : null,
+        height: vitals.height ? Number(vitals.height) : null,
+        waist:  vitals.waist  ? Number(vitals.waist)  : null,
       }),
       updateMember(selected.id, { last_seen: today }),
     ])
@@ -88,9 +99,10 @@ export default function CheckIn() {
     setShowSuccess(true)
     setSelected(null)
     setQuery('')
-    setVitals({ systolic: '', diastolic: '', pulse: '', weight: '' })
+    setVitals({ systolic: '', diastolic: '', pulse: '', weight: '', height: '', waist: '' })
     setOcrResult(null)
     setWeightAlert(null)
+    setLastHeight(null)
     await load()
     setSaving(false)
     setTimeout(() => setShowSuccess(false), 3000)
@@ -103,6 +115,8 @@ export default function CheckIn() {
       diastolic: checkin.diastolic ?? '',
       pulse:     checkin.pulse     ?? '',
       weight:    checkin.weight    ?? '',
+      height:    checkin.height    ?? '',
+      waist:     checkin.waist     ?? '',
     })
     setEditOcrFile(null)
     setEditOcrResult(null)
@@ -122,13 +136,16 @@ export default function CheckIn() {
         const base64 = ev.target.result.split(',')[1]
         const result = await askGeminiOCR(base64, file.type)
         setEditOcrLoading(false)
-        if (result && (result.systolic || result.diastolic)) {
+        if (result && (result.systolic || result.diastolic || result.weight || result.height || result.waist)) {
           setEditOcrResult(result)
           setEditVitals(p => ({
             ...p,
             systolic:  result.systolic  ?? p.systolic,
             diastolic: result.diastolic ?? p.diastolic,
             pulse:     result.pulse     ?? p.pulse,
+            weight:    result.weight    ?? p.weight,
+            height:    result.height    ?? p.height,
+            waist:     result.waist     ?? p.waist,
           }))
         } else {
           setEditOcrResult({ error: true })
@@ -137,9 +154,9 @@ export default function CheckIn() {
       reader.readAsDataURL(file)
     } else {
       setTimeout(() => {
-        const result = { systolic: 138, diastolic: 86, pulse: 74 }
+        const result = { systolic: 138, diastolic: 86, pulse: 74, weight: 62.5, height: null, waist: null }
         setEditOcrResult(result)
-        setEditVitals(p => ({ ...p, systolic: result.systolic, diastolic: result.diastolic, pulse: result.pulse }))
+        setEditVitals(p => ({ ...p, systolic: result.systolic, diastolic: result.diastolic, pulse: result.pulse, weight: result.weight }))
         setEditOcrLoading(false)
       }, 1200)
     }
@@ -176,13 +193,16 @@ export default function CheckIn() {
         const base64 = ev.target.result.split(',')[1]
         const result = await askGeminiOCR(base64, file.type)
         setOcrLoading(false)
-        if (result && (result.systolic || result.diastolic)) {
+        if (result && (result.systolic || result.diastolic || result.weight || result.height || result.waist)) {
           setOcrResult(result)
           setVitals(p => ({
             ...p,
             systolic:  result.systolic  ?? p.systolic,
             diastolic: result.diastolic ?? p.diastolic,
             pulse:     result.pulse     ?? p.pulse,
+            weight:    result.weight    ?? p.weight,
+            height:    result.height    ?? p.height,
+            waist:     result.waist     ?? p.waist,
           }))
         } else {
           setOcrResult({ error: true })
@@ -191,11 +211,50 @@ export default function CheckIn() {
       reader.readAsDataURL(file)
     } else {
       setTimeout(() => {
-        const result = { systolic: 138, diastolic: 86, pulse: 74 }
+        const result = { systolic: 138, diastolic: 86, pulse: 74, weight: 62.5, height: null, waist: null }
         setOcrResult(result)
-        setVitals(p => ({ ...p, systolic: result.systolic, diastolic: result.diastolic, pulse: result.pulse }))
+        setVitals(p => ({ ...p, systolic: result.systolic, diastolic: result.diastolic, pulse: result.pulse, weight: result.weight }))
         setOcrLoading(false)
       }, 1200)
+    }
+  }
+
+  function calcBMI(weight, height) {
+    if (!weight || !height) return null
+    const h = Number(height) / 100
+    return Math.round(Number(weight) / (h * h) * 10) / 10
+  }
+
+  function getBMILabel(bmi) {
+    if (bmi < 18.5) return {
+      label: '體重過輕', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200',
+      message: `BMI ${bmi}，屬於體重過輕（BMI 未達 18.5）。建議多運動、均衡飲食，增加體能，維持健康！`,
+    }
+    if (bmi < 24) return {
+      label: '健康體重', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200',
+      message: `BMI ${bmi}，體重健康（BMI 18.5～24）。恭喜！請繼續保持均衡飲食與規律運動！`,
+    }
+    if (bmi < 27) return {
+      label: '體重過重', color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200',
+      message: `BMI ${bmi}，體重有點過重（BMI 24～27）。要小心囉！建議調整飲食、加強運動，力行健康體重管理！`,
+    }
+    return {
+      label: '肥胖', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200',
+      message: `BMI ${bmi}，屬於肥胖（BMI 達 27 以上）。請立即調整飲食與生活習慣，建議向醫師諮詢健康體重管理計畫！`,
+    }
+  }
+
+  function getWaistStatus(waist, gender) {
+    const threshold = gender === '男' ? 90 : 80
+    const over = Number(waist) >= threshold
+    return over ? {
+      alert: true,
+      color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200',
+      message: `腰圍 ${waist} cm，超過建議標準（${gender === '男' ? '男性 < 90 cm' : '女性 < 80 cm'}）。腹部脂肪偏多，心血管疾病與糖尿病風險增加，建議調整飲食及生活習慣並諮詢醫師。`,
+    } : {
+      alert: false,
+      color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200',
+      message: `腰圍 ${waist} cm，在健康範圍內（${gender === '男' ? '男性 < 90 cm' : '女性 < 80 cm'}）。請繼續保持健康體重與規律運動！`,
     }
   }
 
@@ -276,7 +335,53 @@ export default function CheckIn() {
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
                     </div>
                   ))}
+                  <div>
+                    <label className="text-xs text-gray-500">身高（選填）</label>
+                    <input type="number" placeholder="cm" value={vitals.height}
+                      onChange={e => handleVitalChange('height', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                    {!vitals.height && lastHeight && (
+                      <p className="text-xs text-blue-500 mt-0.5">
+                        使用上次記錄：{lastHeight.value} cm（{lastHeight.date}）
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">腰圍（選填）</label>
+                    <input type="number" placeholder="cm" value={vitals.waist}
+                      onChange={e => handleVitalChange('waist', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
                 </div>
+
+                {(() => {
+                  const effectiveHeight = vitals.height || lastHeight?.value
+                  const bmi = calcBMI(vitals.weight, effectiveHeight)
+                  if (!bmi) return null
+                  const { bg, border, color, message } = getBMILabel(bmi)
+                  return (
+                    <div className={`rounded-xl border p-3 ${bg} ${border}`}>
+                      <p className="text-xs font-semibold text-gray-500 mb-1">
+                        📢 志工告知訊息（BMI {bmi}{!vitals.height && lastHeight ? '＊' : ''}）
+                        {!vitals.height && lastHeight && (
+                          <span className="ml-1 font-normal text-blue-400">＊身高沿用上次記錄</span>
+                        )}
+                      </p>
+                      <p className={`text-sm font-medium ${color}`}>{message}</p>
+                    </div>
+                  )
+                })()}
+
+                {(() => {
+                  if (!vitals.waist || !selected) return null
+                  const { bg, border, color, message } = getWaistStatus(vitals.waist, selected.gender)
+                  return (
+                    <div className={`rounded-xl border p-3 ${bg} ${border}`}>
+                      <p className="text-xs font-semibold text-gray-500 mb-1">📢 志工告知訊息（腰圍）</p>
+                      <p className={`text-sm font-medium ${color}`}>{message}</p>
+                    </div>
+                  )
+                })()}
 
                 {bpStatus && (
                   <div className={`rounded-xl border p-4 space-y-2 ${bpStatus.bg} ${bpStatus.border} ${
@@ -338,12 +443,12 @@ export default function CheckIn() {
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <p className="text-sm font-medium text-gray-600 mb-3 flex items-center gap-2">
-              <Upload className="w-4 h-4" /> OCR 辨識（拍攝血壓計畫面）
+              <Upload className="w-4 h-4" /> OCR 辨識（拍攝健康量測儀器畫面）
             </p>
             <label className="block border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-primary transition-colors">
               <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">{ocrFile ?? '點擊上傳 / 拍攝血壓計圖片'}</p>
-              <p className="text-xs text-gray-400 mt-1">系統自動擷取收縮壓、舒張壓、脈搏 · 影像自動壓縮節省空間</p>
+              <p className="text-sm text-gray-500">{ocrFile ?? '點擊上傳 / 拍攝量測儀器畫面'}</p>
+              <p className="text-xs text-gray-400 mt-1">自動擷取收縮壓、舒張壓、脈搏、體重、身高 · 影像自動壓縮節省空間</p>
               <input type="file" accept="image/*" className="hidden" onChange={handleOCR} />
             </label>
             {ocrLoading && (
@@ -358,8 +463,15 @@ export default function CheckIn() {
                   ✓ OCR 辨識完成{hasGemini ? '（Gemini）' : '（模擬）'}
                 </p>
                 <p className="text-green-600">
-                  收縮壓 {ocrResult.systolic ?? '—'} / 舒張壓 {ocrResult.diastolic ?? '—'} mmHg · 脈搏 {ocrResult.pulse ?? '—'} bpm
+                  收縮壓 {ocrResult.systolic ?? '—'} / 舒張壓 {ocrResult.diastolic ?? '—'} mmHg・脈搏 {ocrResult.pulse ?? '—'} bpm
                 </p>
+                {(ocrResult.weight != null || ocrResult.height != null || ocrResult.waist != null) && (
+                  <p className="text-green-600">
+                    {ocrResult.weight != null && `體重 ${ocrResult.weight} kg`}
+                    {ocrResult.height != null && `・身高 ${ocrResult.height} cm`}
+                    {ocrResult.waist  != null && `・腰圍 ${ocrResult.waist} cm`}
+                  </p>
+                )}
                 <p className="text-xs text-green-500 mt-1">數值已自動填入，如有誤差可手動修正</p>
               </div>
             )}
@@ -424,7 +536,7 @@ export default function CheckIn() {
                               <label className="flex items-center gap-2 border border-dashed border-orange-300 bg-white rounded-lg px-3 py-2.5 cursor-pointer hover:border-orange-400 transition-colors">
                                 <Upload className="w-4 h-4 text-orange-400 shrink-0" />
                                 <span className="text-sm text-orange-500 font-medium">
-                                  {editOcrFile ?? '拍照或匯入血壓計圖片（自動辨識）'}
+                                  {editOcrFile ?? '拍照或匯入量測儀器畫面（自動辨識）'}
                                 </span>
                                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleEditOCR} />
                               </label>
@@ -436,7 +548,11 @@ export default function CheckIn() {
                               )}
                               {editOcrResult && !editOcrResult.error && (
                                 <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                                  ✓ 辨識完成：{editOcrResult.systolic}/{editOcrResult.diastolic} mmHg・脈搏 {editOcrResult.pulse ?? '—'} bpm，數值已填入
+                                  ✓ 辨識完成：{editOcrResult.systolic}/{editOcrResult.diastolic} mmHg・脈搏 {editOcrResult.pulse ?? '—'} bpm
+                                  {editOcrResult.weight != null && `・體重 ${editOcrResult.weight} kg`}
+                                  {editOcrResult.height != null && `・身高 ${editOcrResult.height} cm`}
+                                  {editOcrResult.waist  != null && `・腰圍 ${editOcrResult.waist} cm`}
+                                  ，數值已填入
                                 </div>
                               )}
                               {editOcrResult?.error && (
@@ -462,7 +578,49 @@ export default function CheckIn() {
                                     />
                                   </div>
                                 ))}
+                                <div>
+                                  <label className="text-xs text-gray-500">身高（選填）</label>
+                                  <input
+                                    type="number"
+                                    placeholder="cm"
+                                    value={editVitals.height}
+                                    onChange={e => setEditVitals(p => ({ ...p, height: e.target.value }))}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-500">腰圍（選填）</label>
+                                  <input
+                                    type="number"
+                                    placeholder="cm"
+                                    value={editVitals.waist}
+                                    onChange={e => setEditVitals(p => ({ ...p, waist: e.target.value }))}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                  />
+                                </div>
                               </div>
+                              {(() => {
+                                const bmi = calcBMI(editVitals.weight, editVitals.height)
+                                if (!bmi) return null
+                                const { bg, border, color, message } = getBMILabel(bmi)
+                                return (
+                                  <div className={`rounded-lg border p-2.5 ${bg} ${border}`}>
+                                    <p className="text-xs font-semibold text-gray-500 mb-1">📢 志工告知訊息（BMI {bmi}）</p>
+                                    <p className={`text-xs font-medium ${color}`}>{message}</p>
+                                  </div>
+                                )
+                              })()}
+                              {(() => {
+                                if (!editVitals.waist) return null
+                                const member = members.find(m => m.id === c.member_id)
+                                const { bg, border, color, message } = getWaistStatus(editVitals.waist, member?.gender ?? '女')
+                                return (
+                                  <div className={`rounded-lg border p-2.5 ${bg} ${border}`}>
+                                    <p className="text-xs font-semibold text-gray-500 mb-1">📢 志工告知訊息（腰圍）</p>
+                                    <p className={`text-xs font-medium ${color}`}>{message}</p>
+                                  </div>
+                                )
+                              })()}
                               <div className="flex gap-2 pt-1">
                                 <button
                                   onClick={() => handleEditSubmit(c)}
@@ -512,6 +670,18 @@ export default function CheckIn() {
                                   </span>
                                   {c.pulse != null && <span className="text-xs text-gray-400">脈搏 {c.pulse}</span>}
                                   {c.weight != null && <span className="text-xs text-gray-400">{c.weight}kg</span>}
+                                  {c.waist  != null && <span className="text-xs text-gray-400">腰圍 {c.waist}cm</span>}
+                                  {(() => {
+                                    const effectiveHeight = c.height ?? getLastKnownHeight(c.member_id, c.checkin_date)?.value
+                                    const bmi = calcBMI(c.weight, effectiveHeight)
+                                    if (!bmi) return null
+                                    const { label, color } = getBMILabel(bmi)
+                                    return (
+                                      <span className={`text-xs font-medium ${color}`}>
+                                        BMI {bmi} {label}{!c.height ? '＊' : ''}
+                                      </span>
+                                    )
+                                  })()}
                                 </div>
                               </div>
                             </div>

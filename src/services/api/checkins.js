@@ -41,6 +41,8 @@ export async function updateCheckin(id, vitals) {
       diastolic: vitals.diastolic ? Number(vitals.diastolic) : null,
       pulse:     vitals.pulse     ? Number(vitals.pulse)     : null,
       weight:    vitals.weight    ? Number(vitals.weight)    : null,
+      height:    vitals.height    ? Number(vitals.height)    : null,
+      waist:     vitals.waist     ? Number(vitals.waist)     : null,
     })
     .eq('id', id)
     .eq('org_id', getOrgId())
