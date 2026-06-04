@@ -54,7 +54,7 @@ export async function getMemberCheckins(memberId) {
   since.setMonth(since.getMonth() - 6)
   const { data } = await supabase
     .from('checkins')
-    .select('checkin_date, systolic, diastolic')
+    .select('checkin_date, systolic, diastolic, weight')
     .eq('org_id', getOrgId())
     .eq('member_id', memberId)
     .gte('checkin_date', since.toISOString().slice(0, 10))

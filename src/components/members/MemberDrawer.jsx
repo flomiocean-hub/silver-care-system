@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Calendar, Activity, BookOpen, Loader2 } from 'lucide-react'
+import { X, Calendar, Activity, BookOpen, Loader2, Scale } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { getMemberCheckins } from '../../services/api/checkins'
 import { getMemberEnrollments } from '../../services/api/courses'
@@ -48,6 +48,25 @@ export default function MemberDrawer({ member, onClose }) {
       收縮壓: c.systolic,
       舒張壓: c.diastolic,
     }))
+
+  const bmiData = member.height_cm
+    ? checkins
+        .filter(c => c.weight)
+        .map(c => {
+          const h = member.height_cm / 100
+          return {
+            date: c.checkin_date.slice(5),
+            BMI: parseFloat((c.weight / (h * h)).toFixed(1)),
+          }
+        })
+    : []
+
+  const latestBmi = bmiData.length > 0 ? bmiData[bmiData.length - 1].BMI : null
+  const bmiStatus = latestBmi == null ? null
+    : latestBmi < 18.5 ? { label: '過輕', color: 'text-blue-500' }
+    : latestBmi < 24   ? { label: '正常', color: 'text-green-500' }
+    : latestBmi < 27   ? { label: '過重', color: 'text-yellow-500' }
+    :                    { label: '肥胖', color: 'text-red-500' }
 
   return (
     <>
@@ -130,6 +149,43 @@ export default function MemberDrawer({ member, onClose }) {
                     <ReferenceLine y={90}  stroke="#93c5fd" strokeDasharray="3 3" />
                     <Line type="monotone" dataKey="收縮壓" stroke="#ef4444" dot={{ r: 2 }} strokeWidth={1.5} />
                     <Line type="monotone" dataKey="舒張壓" stroke="#3b82f6" dot={{ r: 2 }} strokeWidth={1.5} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </section>
+
+            {/* BMI 趨勢 */}
+            <section>
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
+                <Scale className="w-4 h-4 text-primary" />
+                BMI 趨勢（近六個月）
+                {bmiStatus && (
+                  <span className={`ml-auto text-xs font-medium ${bmiStatus.color}`}>
+                    {latestBmi} · {bmiStatus.label}
+                  </span>
+                )}
+              </h3>
+              {!member.height_cm ? (
+                <div className="py-6 text-center text-xs text-gray-400 bg-gray-50 rounded-xl">
+                  請先在長者資料中設定身高
+                </div>
+              ) : bmiData.length === 0 ? (
+                <div className="py-6 text-center text-xs text-gray-400 bg-gray-50 rounded-xl">
+                  尚無體重量測記錄
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={150}>
+                  <LineChart data={bmiData} margin={{ top: 4, right: 20, bottom: 0, left: -24 }}>
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                    <YAxis domain={[14, 32]} tick={{ fontSize: 10 }} />
+                    <Tooltip
+                      contentStyle={{ fontSize: 11, borderRadius: 8 }}
+                      formatter={(v) => [`${v}`, 'BMI']}
+                    />
+                    <ReferenceLine y={18.5} stroke="#93c5fd" strokeDasharray="3 3" label={{ value: '18.5', position: 'right', fontSize: 9, fill: '#93c5fd' }} />
+                    <ReferenceLine y={24}   stroke="#fbbf24" strokeDasharray="3 3" label={{ value: '24', position: 'right', fontSize: 9, fill: '#fbbf24' }} />
+                    <ReferenceLine y={27}   stroke="#fca5a5" strokeDasharray="3 3" label={{ value: '27', position: 'right', fontSize: 9, fill: '#fca5a5' }} />
+                    <Line type="monotone" dataKey="BMI" stroke="#10b981" dot={{ r: 3 }} strokeWidth={1.5} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
